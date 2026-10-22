@@ -1,0 +1,42 @@
+# Neon Pursuit
+
+Jogo de corrida 3D em mundo aberto, 100% original, feito com HTML + JavaScript + Three.js. Roda no navegador (PC, celular e tablet).
+
+## Como publicar no GitHub Pages
+
+1. Crie um repositório no GitHub (ex.: `neon-pursuit`).
+2. Envie os arquivos `index.html`, `game.js` e `README.md` para a raiz (botão **Add file > Upload files**).
+3. Vá em **Settings > Pages**, em *Source* escolha **Deploy from a branch**, branch `main`, pasta `/ (root)`, e salve.
+4. Em ~1 minuto o jogo fica em `https://SEU-USUARIO.github.io/neon-pursuit/`.
+
+Observação: o Three.js é carregado pela CDN (cdnjs). Para jogar offline, baixe `three.min.js` (r128) para a pasta e troque o `<script src>` no `index.html`.
+
+## Controles
+
+| Ação | Teclado | Toque |
+|---|---|---|
+| Acelerar / frear | W S ou ↑ ↓ | botões ACEL / FREIO |
+| Direção | A D ou ← → | ◀ ▶ |
+| Drift (freio de mão) | Espaço | DRIFT |
+| Nitro | Shift | NITRO |
+| Trocar carro (mundo aberto) | C | — (use a Garagem) |
+| Voltar à pista | R | — |
+| Pausa | P / Esc | ❚❚ |
+| Som / Qualidade | M / Q | Menu |
+
+Também aceita controle (gamepad): stick esquerdo, RT/LT, A (drift), B (nitro).
+
+## O que tem
+
+- **Mundo aberto infinito** gerado proceduralmente (grade de ruas, prédios, postes), com trânsito.
+- **Modo História** com 5 capítulos: corridas contra rivais, contra o relógio e fuga da polícia.
+- **Polícia** no mundo aberto: acelere demais perto de uma viatura e a perseguição começa.
+- **Garagem** com 5 carros (compre com dinheiro ou desbloqueie na história) e cores.
+- Progresso salvo no navegador (`localStorage`).
+
+## Otimização
+
+- Todos os prédios e postes são **instanciados** (1 draw call cada); o trânsito também.
+- Só os blocos próximos ao jogador existem; o chão é uma textura repetida que acompanha o carro.
+- Sem sombras em tempo real, sem antialias, névoa para cortar o horizonte.
+- 3 níveis de qualidade (resolução e distância de visão), com **redução automática** se o FPS cair.
