@@ -1,0 +1,152 @@
+# LICENÇA PROPRIETÁRIA DE SOFTWARE
+## ALL RIGHTS RESERVED — USO RESTRITO — PROPRIEDADE INTELECTUAL PROTEGIDA
+
+**Versão 1.0 — Licença de Uso Restrito**
+
+Copyright © 2026 Artur da Silva Bock Rabelo. Todos os direitos reservados.
+
+### PREÂMBULO — LEIA ANTES DE TOCAR EM QUALQUER ARQUIVO
+
+O presente software, incluindo seu código-fonte, código compilado, arquitetura, estrutura de diretórios, algoritmos originais, interfaces, documentação, recursos gráficos originais e demais componentes protegidos por direitos de propriedade intelectual, constitui obra protegida pela legislação aplicável.
+
+O acesso público ao repositório, a visualização dos arquivos ou a possibilidade técnica de baixar o código não constituem, por si só, autorização para utilizá-lo, modificá-lo, reproduzi-lo, distribuí-lo ou explorá-lo comercialmente.
+
+**PUBLICAMENTE VISÍVEL NÃO SIGNIFICA DE DOMÍNIO PÚBLICO.**
+
+Ao utilizar o software nos limites autorizados por esta licença, o usuário concorda em respeitar suas condições.
+
+---
+
+### CLÁUSULA 1 — PROPRIEDADE INTELECTUAL
+
+1.1. Todos os direitos não expressamente concedidos por esta licença permanecem reservados ao titular dos respectivos direitos.
+
+1.2. Nenhuma disposição desta licença implica cessão, transferência ou renúncia de direitos autorais, direitos sobre marcas ou outros direitos de propriedade intelectual pertencentes ao titular.
+
+1.3. A disponibilização do código-fonte não concede ao usuário qualquer direito de propriedade sobre o software.
+
+1.4. Bibliotecas, dependências, recursos de terceiros e componentes de código aberto permanecem sujeitos às respectivas licenças e aos direitos de seus titulares.
+
+---
+
+### CLÁUSULA 2 — PERMISSÃO LIMITADA DE ACESSO
+
+2.1. É permitido visualizar o código-fonte publicamente disponibilizado para fins de avaliação, estudo e análise técnica não comercial.
+
+2.2. Essa permissão não constitui autorização geral para incorporar o código em outros projetos, publicar versões derivadas ou utilizá-lo como parte de produtos ou serviços próprios.
+
+2.3. Qualquer utilização que exceda as permissões expressamente concedidas nesta licença depende de autorização prévia e escrita do titular dos direitos pertinentes.
+
+2.4. O acesso ao repositório não cria qualquer obrigação de fornecer suporte técnico, atualizações, documentação adicional ou assistência ao usuário.
+
+---
+
+### CLÁUSULA 3 — MODIFICAÇÃO E OBRAS DERIVADAS
+
+3.1. Salvo quando expressamente autorizado por escrito ou permitido pela legislação aplicável, o usuário não poderá publicar, distribuir ou explorar comercialmente versões modificadas do software.
+
+3.2. Modificações privadas não transferem ao usuário os direitos sobre o código original.
+
+3.3. A inclusão de funcionalidades próprias, alterações de nomes, reorganização de arquivos ou substituição parcial de componentes não elimina os direitos aplicáveis ao material original incorporado à obra derivada.
+
+3.4. Nenhuma autorização para criar, utilizar ou distribuir obras derivadas será presumida a partir do silêncio do titular.
+
+---
+
+### CLÁUSULA 4 — PROIBIÇÃO DE REDISTRIBUIÇÃO NÃO AUTORIZADA
+
+4.1. Não é permitida a redistribuição de cópias integrais ou substanciais do software sem autorização, ressalvadas as permissões eventualmente concedidas por escrito e os direitos que não possam ser afastados por contrato.
+
+4.2. É vedado apresentar o software original como criação própria, omitir deliberadamente a autoria de material protegido ou induzir terceiros a acreditar que o usuário detém direitos que não possui.
+
+4.3. A publicação de cópias modificadas não elimina a necessidade de respeitar os direitos incidentes sobre os componentes originais.
+
+4.4. A distribuição autorizada de um componente de terceiros não autoriza automaticamente a distribuição do restante do projeto.
+
+---
+
+### CLÁUSULA 5 — USO COMERCIAL
+
+5.1. Salvo autorização expressa, esta licença não concede permissão para comercializar, sublicenciar, revender ou incorporar o software a um produto ou serviço comercial.
+
+5.2. Qualquer licença comercial deverá definir expressamente seu escopo, território, duração, remuneração, modalidades de exploração e demais condições aplicáveis.
+
+5.3. A mera atribuição de créditos ao autor não substitui uma autorização comercial quando esta for necessária.
+
+5.4. O titular poderá negociar licenças comerciais distintas para diferentes usuários, empresas ou modalidades de utilização, observados os direitos de terceiros e a legislação aplicável.
+
+---
+
+### CLÁUSULA 6 — AUTORIA, CRÉDITOS E IDENTIFICAÇÃO
+
+6.1. Os avisos de direitos autorais e demais avisos legais existentes nos arquivos não deverão ser removidos quando sua manutenção for exigida pela legislação ou por uma autorização aplicável.
+
+6.2. É proibido atribuir falsamente a si próprio a autoria do código original protegido.
+
+6.3. Nenhuma disposição desta licença exige atribuição de autoria em situações nas quais essa exigência não seja aplicável; tampouco restringe direitos morais ou outros direitos legalmente irrenunciáveis.
+
+---
+
+### CLÁUSULA 7 — VIOLAÇÕES E MEDIDAS LEGAIS
+
+7.1. O uso que exceda os direitos concedidos poderá resultar na revogação das permissões contratuais aplicáveis, quando juridicamente cabível.
+
+7.2. Diante de uma violação, o titular poderá solicitar a interrupção do uso não autorizado, a retirada de cópias distribuídas irregularmente e a adoção de outras medidas cabíveis.
+
+7.3. Quando presentes os requisitos legais, o titular poderá buscar medidas judiciais e reparação pelos danos comprovadamente sofridos.
+
+7.4. Nenhuma penalidade, multa ou indenização será considerada automaticamente devida apenas porque esta licença a menciona. Sua aplicação dependerá da legislação e das circunstâncias pertinentes.
+
+---
+
+### CLÁUSULA 8 — AUSÊNCIA DE GARANTIAS
+
+8.1. Salvo quando expressamente estabelecido de outra forma, o software é disponibilizado no estado em que se encontra, sem garantia de funcionamento ininterrupto, adequação a uma finalidade específica ou ausência de defeitos.
+
+8.2. O titular não garante compatibilidade com todos os sistemas, dispositivos, ambientes de execução ou configurações possíveis.
+
+8.3. Esta cláusula não exclui garantias ou responsabilidades que a legislação aplicável proíba excluir.
+
+---
+
+### CLÁUSULA 9 — CONTRIBUIÇÕES DE TERCEIROS
+
+9.1. O envio de contribuições ao projeto não transfere automaticamente ao titular os direitos autorais do contribuinte.
+
+9.2. Antes de aceitar contribuições substanciais, o projeto poderá exigir um acordo específico que esclareça os direitos de utilização, modificação e distribuição dessas contribuições.
+
+9.3. O contribuinte declara que possui os direitos ou as autorizações necessários para apresentar o material enviado.
+
+9.4. Nenhuma contribuição poderá ser utilizada em desacordo com uma licença de terceiros aplicável ao material.
+
+---
+
+### CLÁUSULA 10 — INDEPENDÊNCIA DAS DISPOSIÇÕES
+
+10.1. Caso alguma disposição desta licença seja considerada inválida ou inexequível, as demais permanecerão em vigor na medida permitida pela legislação aplicável.
+
+10.2. A eventual tolerância a uma violação não implica renúncia automática aos direitos do titular.
+
+10.3. Qualquer autorização especial deverá ser interpretada conforme seus próprios termos e não ampliará automaticamente as permissões concedidas aos demais usuários.
+
+---
+
+### CLÁUSULA 11 — LEGISLAÇÃO APLICÁVEL
+
+11.1. Esta licença deverá ser interpretada de acordo com a legislação aplicável aos direitos envolvidos e às relações jurídicas pertinentes.
+
+11.2. A escolha de foro, quando necessária e juridicamente permitida, deverá ser estabelecida de maneira expressa e válida.
+
+11.3. Nada nesta licença pretende afastar direitos ou garantias que sejam obrigatórios por força de lei.
+
+---
+
+### DISPOSIÇÃO FINAL — NÃO PRESUMA AUTORIZAÇÃO
+
+Se determinada utilização não estiver expressamente autorizada por esta licença, não presuma que ela esteja permitida.
+
+Entre em contato com o titular dos direitos antes de realizar usos que excedam as permissões concedidas.
+
+**O código pode estar disponível para leitura. Os direitos sobre ele continuam sujeitos à legislação e aos termos desta licença.**
+
+Copyright © 2026 Artur da Silva Bock Rabelo. Todos os direitos reservados, ressalvadas as permissões expressamente concedidas e os direitos de terceiros.
