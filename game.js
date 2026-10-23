@@ -11,6 +11,12 @@
   function listen(target, type, fn, opts) {
     target.addEventListener(type, fn, opts); listeners.push([target, type, fn, opts]);
   }
+  const CATALOG = window.NEON_CATALOG;
+  if (!CATALOG || !Array.isArray(CATALOG.vehicles) || !CATALOG.vehicles.length) {
+    document.body.insertAdjacentHTML('beforeend', '<p role="alert" style="position:fixed;z-index:50;top:20px;left:20px;color:#fff;background:#731c31;padding:20px">Catálogo ausente: carregue cars.js antes de game.js.</p>');
+    console.error('Catálogo ausente: cars.js deve ser carregado antes de game.js.');
+    return;
+  }
   const REQUIRED_IDS = ['c','mm','sfx','bQ','msg','count','spd','gear','nosB','cash','carName','drift',
     'mission','pos','timer','heat','vig','bustB','menu','story','garage','pause','result','hud',
     'pGarage','pRetry','rTitle','rText','rBtns','chList','gName','gStats','gSw','gAct','gCash',
@@ -44,49 +50,130 @@
 
   /* ---------------- constantes e save ---------------- */
   const P = 120, RW = 24, HALF = 12;
-  let save = { cash: 3000, owned: [0], cur: 0, ch: 0, colors: {} };
-  try { Object.assign(save, JSON.parse(localStorage.getItem('np_save') || '{}')); } catch (e) { console.warn('Progresso indisponível; usando padrões.', e); }
-  const persist = () => { try { localStorage.setItem('np_save', JSON.stringify(save)); } catch (e) { console.warn('Armazenamento local indisponível.', e); } };
-
-  const CARS = [
-    { name: 'Vira-Lata 1.0', price: 0,     top: 44, acc: 14, turn: 2.3,  grip: 6.5, len: 3.9, wid: 1.8,  color: 0xe8b13a },
-    { name: 'Falcão S',      price: 9000,  top: 52, acc: 17, turn: 2.4,  grip: 7.0, len: 4.4, wid: 1.85, color: 0x3a7be8 },
-    { name: 'Tigre RS',      price: 22000, top: 59, acc: 20, turn: 2.5,  grip: 7.5, len: 4.3, wid: 1.9,  color: 0xd23a3a },
-    { name: 'Relâmpago GT',  price: 42000, top: 66, acc: 23, turn: 2.35, grip: 7.0, len: 4.7, wid: 1.95, color: 0x2fbf71, spoiler: 1 },
-    { name: 'Fantasma X',    price: 80000, top: 74, acc: 27, turn: 2.6,  grip: 8.0, len: 4.5, wid: 2.0,  color: 0x9b59ff, spoiler: 1 }
+  const SAVE_KEY = 'np_save_global_v5';
+  const Q_KEY = 'np_q_jdm_v4';
+  const CARS = CATALOG.vehicles;
+  const CAR_INDEX = new Map(CARS.map((car, i) => [car.id, i]));
+  const SWATCH = [0xffffff, 0x111111, 0x8c9198, 0xff3d3d, 0x1d57ff, 0xffca1b, 0xff7a1a, 0x2de2c8, 0x9b59ff, 0x46b35f, 0xc3c7cf, 0xfa367b];
+  const LEGACY_V4_IDS = [
+    'jdm-toyota-ae86-trueno-levin-ae86','jdm-honda-civic-eg-ek-eg-ek',
+    'jdm-toyota-corolla-ae101-ae111-ae101-ae111','jdm-mazda-mx-5-na-nb-nd',
+    'jdm-nissan-silvia-s13-s13','jdm-nissan-180sx-rps13',
+    'jdm-honda-integra-type-r-dc2','jdm-mazda-rx-7-fc3s',
+    'jdm-nissan-silvia-s14-s14','jdm-toyota-chaser-jzx100',
+    'jdm-nissan-silvia-s15-s15','jdm-toyota-mr2-sw20',
+    'jdm-nissan-skyline-gt-r-r32','jdm-honda-civic-type-r-fd2-fk8',
+    'jdm-mazda-rx-7-fd3s','jdm-nissan-350z-z33',
+    'jdm-subaru-impreza-wrx-sti-gc8-gdb','jdm-mitsubishi-lancer-evolution-iv-vi-ix-x',
+    'jdm-toyota-supra-a80-mk4','jdm-nissan-370z-z34',
+    'jdm-nissan-skyline-gt-r-r34','jdm-honda-nsx-na1',
+    'jdm-toyota-supra-a90-mk5','jdm-lexus-lfa-lfa'
   ];
-  const SWATCH = [0xe8b13a, 0x3a7be8, 0xd23a3a, 0x2fbf71, 0x9b59ff, 0xf2f2f2, 0x222222, 0xff7a1a, 0xff3d81, 0x2de2c8];
-
+  const saveDefaults = () => ({cash:12000, owned:[0], cur:0, ch:0, colors:{}, mods:{}, region:'rs'});
+  let save = saveDefaults();
+  try {
+    let data = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!data) {
+      const old = JSON.parse(localStorage.getItem('np_save_jdm_v4') || 'null');
+      if (old && typeof old === 'object') {
+        data = { cash:old.cash, ch:old.ch, owned:(old.owned||[]).map(i=>CAR_INDEX.get(LEGACY_V4_IDS[i])).filter(Number.isInteger),
+          cur:CAR_INDEX.get(LEGACY_V4_IDS[old.cur]), colors:{}, mods:{}, region:'rs' };
+        for (const [k,v] of Object.entries(old.colors||{})) {
+          if (Number.isInteger(v) && LEGACY_V4_IDS[+k]) data.colors[LEGACY_V4_IDS[+k]]=v;
+        }
+      }
+    }
+    if (data && typeof data==='object') {
+      Object.assign(save,data);
+      if (Array.isArray(data.ownedIds)) save.owned=data.ownedIds.map(id=>CAR_INDEX.get(id)).filter(Number.isInteger);
+      if (data.curId && CAR_INDEX.has(data.curId)) save.cur=CAR_INDEX.get(data.curId);
+    }
+  } catch(e) {console.warn('Não foi possível recuperar o progresso salvo.',e);}
+  const persist=()=>{
+    try{localStorage.setItem(SAVE_KEY,JSON.stringify({ ...save,
+      ownedIds:save.owned.map(i=>CARS[i]?.id).filter(Boolean),curId:CARS[save.cur]?.id }));}
+    catch(e){console.warn('Não foi possível salvar o progresso.',e);}
+  };
+  const MODS = Object.freeze({
+    engine:{label:'Motor',options:['Original','Street','Sport','Race'],prices:[0,4000,10000,22000]},
+    induction:{label:'Indução',options:['Configuração original','Kit turbo','Supercharger'],prices:[0,14000,16000]},
+    transmission:{label:'Transmissão',options:['Original','Sport','Race'],prices:[0,5000,12000]},
+    brakes:{label:'Freios',options:['Original','Sport','Race'],prices:[0,3000,9000]},
+    suspension:{label:'Suspensão',options:['Original','Street','Pista'],prices:[0,3500,9000]},
+    tires:{label:'Pneus',options:['Rua','Drift','Drag','Pista'],prices:[0,3000,3500,6500]},
+    aero:{label:'Aerodinâmica',options:['Original','Street','Race'],prices:[0,3000,8000]},
+    weight:{label:'Alívio de peso',options:['Original','Leve','Pista'],prices:[0,4500,11500]},
+    wheels:{label:'Rodas',options:['Originais','Racing','Concavas'],prices:[0,2500,5000]},
+    ride:{label:'Altura',options:['Original','Baixo','Muito baixo'],prices:[0,1200,2400]},
+    bodykit:{label:'Body kit',options:['Original','Street','Widebody'],prices:[0,4500,10000]},
+    spoiler:{label:'Aerofólio',options:['Original','Ducktail','Asa GT'],prices:[0,1900,4200]},
+    exhaust:{label:'Escapamento',options:['Original','Sport','Duplo'],prices:[0,1800,3800]}
+  });
+  const SETUP_DEFAULT=Object.freeze(Object.fromEntries(Object.keys(MODS).map(k=>[k,0])));
+  function setupFor(i) {
+    const id=CARS[i]?.id;
+    const raw=(id && save.mods[id]) || {};
+    const setup={};
+    for(const [k,config] of Object.entries(MODS)) {
+      const n=Number(raw[k]); setup[k]=Number.isInteger(n) && n>=0 && n<config.options.length?n:0;
+    }
+    return setup;
+  }
+  function tunedCar(i) {
+    const base=CARS[i], m=setupFor(i);
+    const engine=1+m.engine*.10, induction=m.induction===1?1.16:m.induction===2?1.12:1;
+    const drivetrain=1+m.transmission*.035;
+    const tyres=m.tires;
+    const massReduction=1-m.weight*.042;
+    const aeroGain=m.aero*.11;
+    const gripBonus=tyres===3?.68:tyres===2?-.12:tyres===1?-.50:0;
+    const driftBonus=tyres===1?1.2:tyres===3?-.75:0;
+    const d={...base,...{setup:m}};
+    d.massKg=Math.round(base.massKg*massReduction);
+    d.powerHp=Math.round(base.powerHp*engine*induction);
+    d.torqueNm=Math.round(base.torqueNm*engine*induction);
+    d.acc=+(base.acc*engine*induction*drivetrain/massReduction*(tyres===2?1.08:1)).toFixed(2);
+    d.top=+(base.top*(1+m.engine*.022+(induction-1)*.18)*(1-m.aero*.009)).toFixed(2);
+    d.turn=+(base.turn+(m.suspension*.045)+m.weight*.035).toFixed(2);
+    d.grip=+(base.grip+gripBonus+m.suspension*.17+aeroGain).toFixed(2);
+    d.drift=+(base.drift+driftBonus).toFixed(2);
+    d.drag=+(base.aeroDrag+m.aero*.01).toFixed(3);
+    d.brakeFactor=1+m.brakes*.16;
+    d.spoiler=m.spoiler===1?'duck':m.spoiler===2?'gt_large':base.spoiler;
+    return d;
+  }
   const CHAPTERS = [
-    { name: 'Cap. 1 — Primeira Largada', type: 'race', rivals: 1, steps: 14, reward: 4000, unlock: 1,
-      intro: 'Prove que você pertence às ruas. Vença o Dante até a linha final.' },
-    { name: 'Cap. 2 — Contra o Relógio', type: 'time', steps: 18, reward: 7000, unlock: 2,
-      intro: 'Passe por todos os checkpoints antes do tempo acabar.' },
-    { name: 'Cap. 3 — Rei do Asfalto', type: 'race', rivals: 2, steps: 20, reward: 11000, unlock: 3,
-      intro: 'Dois pilotos da lista de elite querem sua vaga. Corra!' },
-    { name: 'Cap. 4 — Fuga Noturna', type: 'escape', cops: 3, reward: 15000, unlock: 4,
-      intro: 'A polícia está atrás de você. Despiste todas as viaturas!' },
-    { name: 'Cap. 5 — A Grande Final', type: 'race', rivals: 3, steps: 26, reward: 30000, unlock: null,
-      intro: 'Os três melhores da cidade. Quem cruzar primeiro leva tudo.' }
+    { name: 'Cap. 1 — Iniciação Touge', type: 'race', rivals: 1, steps: 14, reward: 6000, unlock: [4, 24],
+      intro: 'Mostre que o AE86 não está aqui por acaso. Derrote Dante nas ruas molhadas.' },
+    { name: 'Cap. 2 — Noite de Checkpoints', type: 'time', steps: 18, reward: 10000, unlock: [8, 56],
+      intro: 'Atravesse a cidade antes do relógio zerar e garanta espaço na cena.' },
+    { name: 'Cap. 3 — Liga dos Drift Kings', type: 'race', rivals: 2, steps: 20, reward: 15000, unlock: [12, 86],
+      intro: 'Dois nomes pesados querem te barrar. Vença e conquiste respeito.' },
+    { name: 'Cap. 4 — Operação Fuga', type: 'escape', cops: 3, reward: 22000, unlock: [17, 112],
+      intro: 'As viaturas fecharam o cerco. Escape e prove controle sob pressão.' },
+    { name: 'Cap. 5 — Godzilla Protocol', type: 'race', rivals: 3, steps: 26, reward: 40000, unlock: [20, 148],
+      intro: 'A elite das ruas está na largada. Se vencer, o topo da cidade é seu.' }
   ];
 
   // Validate persisted values before any mesh, menu or economy operation.
-  save.cash = Number.isFinite(save.cash) ? clamp(save.cash, 0, 1e12) : 3000;
+  save.cash = Number.isFinite(save.cash) ? clamp(save.cash, 0, 1e12) : 12000;
   save.owned = Array.isArray(save.owned) ? [...new Set(save.owned.filter(i => Number.isInteger(i) && i >= 0 && i < CARS.length))] : [0];
   if (!save.owned.includes(0)) save.owned.unshift(0);
   if (!save.owned.includes(save.cur)) save.cur = 0;
+  if (!save.mods || typeof save.mods!=='object' || Array.isArray(save.mods)) save.mods={};
+  save.region=typeof save.region==='string'?save.region:'rs';
   save.ch = Number.isInteger(save.ch) ? clamp(save.ch, 0, CHAPTERS.length) : 0;
   const colors = {};
   for (let i = 0; i < CARS.length; i++) {
-    const v = save.colors && save.colors[i];
-    if (Number.isInteger(v) && v >= 0 && v <= 0xffffff) colors[i] = v;
+    const v = save.colors && (save.colors[CARS[i].id] ?? save.colors[i]);
+    if (Number.isInteger(v) && v >= 0 && v <= 0xffffff) colors[CARS[i].id] = v;
   }
   save.colors = colors;
 
   /* ---------------- qualidade ---------------- */
   const isTouch = matchMedia('(pointer: coarse)').matches;
   let quality = isTouch ? 0 : 1;
-  try { const q = localStorage.getItem('np_q'); if (q !== null) quality = clamp(+q | 0, 0, 2); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
+  try { const q = localStorage.getItem(Q_KEY); if (q !== null) quality = clamp(+q | 0, 0, 2); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
   const QN = ['Baixa', 'Média', 'Alta'];
   const QS = [
     { pr: 0.6, R: 2, fog: 250, post: 0, signs: 0, rain: 0 },
@@ -112,6 +199,23 @@
   const sun = new THREE.DirectionalLight(0xb9d0ff, 0.85);
   sun.position.set(-0.6, 1, -0.4);
   scene.add(sun);
+
+  // Presets visuais regionais: não representam mapas geográficos reais.
+  function applyRegion(){
+    const preset=CATALOG.regions.find(r=>r.id===save.region)||CATALOG.regions[0];
+    scene.fog.color.setHex(preset.fog);
+    renderer.setClearColor(preset.fog);
+    sun.color.setHex(preset.id==='ne'?0xc6dcff:preset.id==='co'?0xe3bdad:0xb9d0ff);
+    if($('regionSelect'))$('regionSelect').value=preset.id;
+    if($('regionTheme'))$('regionTheme').textContent=preset.theme+' · Ambientação fictícia, não mapa exclusivo.';
+  }
+  if($('regionSelect')){
+    const sel=$('regionSelect');sel.replaceChildren();
+    CATALOG.regions.forEach(r=>{const op=document.createElement('option');op.value=r.id;op.textContent=r.name;sel.append(op);});
+    sel.value=save.region;
+    sel.addEventListener('change',e=>{save.region=e.target.value;persist();applyRegion();});
+  }
+  applyRegion();
 
   // shared uniforms for point sprites
   const U = { uScale: { value: 800 }, uFar: { value: 350 }, uTime: { value: 0 } };
@@ -264,7 +368,7 @@
     resize();
     lastBlock = null;
     $('bQ').textContent = 'Qualidade: ' + QN[quality];
-    try { if (!adaptive) localStorage.setItem('np_q', String(quality)); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
+    try { if (!adaptive) localStorage.setItem(Q_KEY, String(quality)); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
   }
   listen(window, 'resize', resize);
 
@@ -585,68 +689,143 @@
   const matRed = new THREE.MeshBasicMaterial({ color: 0xff2020 });
   const matBlue = new THREE.MeshBasicMaterial({ color: 0x2060ff });
 
+  /* Garagem procedural: aproxima classes de carroceria; não reproduz malhas oficiais. */
   function buildCar(def, color, opts) {
-    opts = opts || {};
-    const g = new THREE.Group(), L = def.len, W = def.wid;
-    g.rotation.order = 'YXZ';
-    const bodyMat = new THREE.MeshPhongMaterial({ color, shininess: 90, specular: 0x555566 });
-    const tailMat = matTail.clone();
-    const extra = [tailMat];
-    const add = (geo, mat, x, y, z, sx, sy, sz) => {
-      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m;
+    opts=opts||{};
+    const g=new THREE.Group(), L=def.len, W=def.wid, style=def.style||'coupe_round';
+    g.rotation.order='YXZ';
+    const setup=def.setup||SETUP_DEFAULT;
+    const bodyMat=new THREE.MeshPhongMaterial({color,shininess:95,specular:0x727b93});
+    const trimMat=new THREE.MeshLambertMaterial({color:0x161920});
+    const glassMat=new THREE.MeshPhongMaterial({color:0x202d3c,shininess:120,specular:0x879bbd});
+    const tailMat=matTail.clone();
+    const extra=[bodyMat,trimMat,glassMat,tailMat];
+    const add=(geo,mat,x,y,z,sx,sy,sz,rx=0,ry=0,rz=0)=>{
+      const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(rx,ry,rz);g.add(m);return m;
     };
-    add(boxG, bodyMat, 0, 0.55, 0, W, 0.5, L);
-    add(boxG, bodyMat, 0, 0.82, L * 0.3, W * 0.96, 0.14, L * 0.36);
-    add(boxG, matGlass, 0, 1.08, -L * 0.06, W * 0.84, 0.5, L * 0.5);
-    add(boxG, bodyMat, 0, 1.35, -L * 0.06, W * 0.7, 0.06, L * 0.42);
-    add(boxG, matDark, 0, 0.34, L / 2 - 0.02, W * 0.98, 0.2, 0.14);
-    add(boxG, matDark, 0, 0.34, -L / 2 + 0.02, W * 0.98, 0.2, 0.14);
-    add(boxG, matDark, W / 2 + 0.01, 0.32, 0, 0.05, 0.14, L * 0.5);
-    add(boxG, matDark, -W / 2 - 0.01, 0.32, 0, 0.05, 0.14, L * 0.5);
-    add(boxG, bodyMat, W / 2 + 0.12, 0.95, L * 0.14, 0.14, 0.1, 0.22);
-    add(boxG, bodyMat, -W / 2 - 0.12, 0.95, L * 0.14, 0.14, 0.1, 0.22);
-    add(boxG, tailMat, 0, 0.7, -L / 2 - 0.01, W * 0.86, 0.14, 0.06);
-    add(boxG, matHead, 0, 0.66, L / 2 + 0.01, W * 0.86, 0.14, 0.06);
-    if (def.spoiler) {
-      add(boxG, bodyMat, 0, 1.25, -L / 2 + 0.2, W * 0.9, 0.06, 0.5);
-      add(boxG, matDark, W * 0.32, 1.0, -L / 2 + 0.2, 0.06, 0.5, 0.3);
-      add(boxG, matDark, -W * 0.32, 1.0, -L / 2 + 0.2, 0.06, 0.5, 0.3);
+    let roofLength=.45,roofH=.46,roofZ=-.02,roofW=.79,bodyH=.49;
+    let nose=.34,tail=.30,roofYaw=0,open=false,suv=false,pickup=false,bed=false;
+    switch(style){
+      case 'classic_hatch': roofLength=.56;roofH=.50;roofZ=-.03;bodyH=.51;break;
+      case 'hatch':case 'hot_hatch': roofLength=.54;roofH=.48;roofZ=-.05;break;
+      case 'compact_sedan':case 'sedan':case 'rally_sedan': roofLength=.56;roofH=.48;roofZ=0;roofW=.82;break;
+      case 'wagon':roofLength=.68;roofH=.49;roofZ=-.09;roofW=.84;break;
+      case 'suv':roofLength=.60;roofH=.69;roofZ=-.06;roofW=.84;bodyH=.68;suv=true;break;
+      case 'pickup':roofLength=.33;roofH=.50;roofZ=.18;roofW=.82;bed=true;pickup=true;break;
+      case 'muscle':roofLength=.34;roofH=.37;roofZ=-.12;nose=.43;tail=.29;bodyH=.50;break;
+      case 'wedge':roofLength=.40;roofH=.36;roofZ=-.05;nose=.43;bodyH=.44;break;
+      case 'roadster':roofLength=.33;roofH=.22;roofZ=-.02;nose=.39;open=true;bodyH=.46;break;
+      case 'midship':case 'nsx':roofLength=.36;roofH=.35;roofZ=-.02;bodyH=.43;break;
+      case 'supercar': roofLength=.34;roofH=.32;roofZ=-.04;nose=.42;bodyH=.42;break;
+      case 'classic_sport':roofLength=.36;roofH=.40;roofZ=-.04;nose=.43;bodyH=.45;break;
+      case 'z_coupe':case 'z_modern':case 'modern_coupe':roofLength=.37;roofH=.38;roofZ=-.06;nose=.41;break;
+      case 'supra_a80':case 'curvy_coupe':roofLength=.42;roofH=.38;roofZ=-.06;break;
+      case 'boxy_coupe':case 'r34':roofLength=.49;roofH=.44;roofW=.81;break;
+      case 'fastback':roofLength=.49;roofH=.41;roofZ=-.08;break;
+      default:break;
     }
-    for (const side of [-1, 1]) {
-      add(boxG, matRim, side * W * 0.28, 0.35, -L / 2 - 0.04, 0.18, 0.16, 0.25);
-      add(boxG, matDark, side * W * 0.28, 0.35, -L / 2 - 0.18, 0.12, 0.1, 0.02);
+    const bodyW=W*(setup.bodykit===2?1.12:setup.bodykit===1?1.05:1);
+    const cy=.38+bodyH*.30;
+    // Corpo, capô, traseira e superfícies da carroceria; peças compartilhadas entre estilos.
+    add(boxG,bodyMat,0,cy,0,bodyW,bodyH,L*.97);
+    add(boxG,bodyMat,0,.77,L*.28,bodyW*.93,.12,L*(nose*.90));
+    add(boxG,bodyMat,0,.81,-L*.31,bodyW*.94,.12,L*(tail*.78));
+    add(boxG,trimMat,0,.23,L*.48,bodyW*.92,.11,.17);
+    add(boxG,trimMat,0,.23,-L*.48,bodyW*.92,.10,.17);
+    add(boxG,trimMat,0,.27,0,bodyW*.95,.08,L*.87);
+    // Longarina de cabine e superfícies de vidro variam por hatch/sedã/cupê/roadster.
+    if(open){
+      add(boxG,trimMat,0,.93,roofZ*L,bodyW*.65,.17,L*roofLength);
+      add(boxG,glassMat,0,1.04,L*.16,bodyW*.64,.24,.07,-.48);
+      for(const sx of [-1,1])add(boxG,trimMat,sx*bodyW*.19,1.04,-L*.09,.05,.20,.10);
+    } else {
+      add(boxG,glassMat,0,1.01+roofH*.20,roofZ*L,bodyW*roofW,roofH,L*roofLength);
+      add(boxG,bodyMat,0,1.01+roofH*.55,roofZ*L,bodyW*roofW*.90,.055,L*roofLength*.82);
+      add(boxG,glassMat,0,1.03,L*.17,bodyW*roofW*.89,.18,.045,-.52);
+      add(boxG,glassMat,0,1.05,-L*.17,bodyW*roofW*.88,.14,.045,.47);
     }
-    const wheels = [], pivots = [];
-    for (const sx of [1, -1]) for (const sz of [1, -1]) {
-      const p = new THREE.Group();
-      p.position.set(sx * (W / 2 - 0.08), 0.38, sz * L * 0.32);
-      const w = new THREE.Mesh(wheelG, matWheel);
-      const rim = new THREE.Mesh(rimG, matRim); w.add(rim);
-      p.add(w); g.add(p); wheels.push(w); if (sz > 0) pivots.push(p);
+    if(suv){
+      add(boxG,bodyMat,0,.68,-L*.35,bodyW*.91,.22,L*.25);
+      add(boxG,trimMat,0,.38,L*.41,bodyW*.65,.14,.10);
     }
-    let bar = null;
-    if (opts.cop) {
-      bar = [add(boxG, matRed, 0.35, 1.45, -L * 0.06, 0.5, 0.14, 0.3), add(boxG, matBlue, -0.35, 1.45, -L * 0.06, 0.5, 0.14, 0.3)];
+    if(pickup){
+      add(boxG,trimMat,0,.72,-L*.23,bodyW*.73,.045,L*.46);
+      for(const sx of [-1,1])add(boxG,bodyMat,sx*bodyW*.44,.72,-L*.23,.10,.25,L*.45);
+      add(boxG,bodyMat,0,.73,-L*.48,bodyW*.90,.18,.10);
     }
-    if (opts.glow) {
-      const um = new THREE.MeshBasicMaterial({ color: opts.cop ? 0x4466ff : color, map: glowTex, transparent: true, opacity: 0.85,
-        blending: THREE.AdditiveBlending, depthWrite: false });
-      const u = new THREE.Mesh(flatG, um); u.position.y = 0.04; u.scale.set(W * 1.9, 1, L * 1.35); g.add(u); extra.push(um);
+    // Side skirts, fenders, mirrors and optional sport bumpers.
+    for(const sx of [-1,1]){
+      add(boxG,bodyMat,sx*bodyW*.49,.52,L*.28,.10,.19,L*.21);
+      add(boxG,bodyMat,sx*bodyW*.49,.52,-L*.27,.10,.19,L*.21);
+      add(boxG,trimMat,sx*bodyW*.47,.25,0,.055,.11,L*.64);
+      add(boxG,trimMat,sx*(bodyW*.5+.07),.96,L*.09,.13,.09,.22);
+      if(setup.bodykit>0)add(boxG,trimMat,sx*bodyW*.48,.17,0,.07,.065,L*.67);
     }
-    if (opts.beam) {
-      const bmt = new THREE.MeshBasicMaterial({ color: 0xfff0c8, map: beamT, transparent: true, opacity: 0.32,
-        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-      const b = new THREE.Mesh(flatG, bmt); b.position.set(0, 0.06, L / 2 + 11); b.scale.set(9, 1, 22); g.add(b); extra.push(bmt);
+    if(setup.bodykit>0){
+      add(boxG,trimMat,0,.18,L*.47,bodyW*.86,.09,.15);
+      add(boxG,trimMat,0,.18,-L*.48,bodyW*.80,.07,.13);
     }
-    g.userData = { bodyMat, tailMat, extra, wheels, pivots, bar, roll: 0, pitch: 0 };
+    // Faróis escamoteáveis (quando o estilo combina) e faróis fixos.
+    const pop=!!def.popups;
+    for(const sx of [-1,1]){
+      const hx=sx*bodyW*.25;
+      if(pop)add(boxG,trimMat,hx,.79,L*.36,.26,.08,L*.11);
+      add(boxG,matHead,hx,.61,L*.496,bodyW*.18,.075,.045);
+      add(boxG,tailMat,hx,.64,-L*.497,bodyW*.20,.090,.045);
+    }
+    if(style==='r34'||style==='boxy_coupe'){
+      add(boxG,trimMat,0,.60,L*.50,bodyW*.34,.10,.06);
+      if(style==='r34'){
+        const round=new THREE.CylinderGeometry(.10,.10,.05,12).rotateX(Math.PI/2);
+        for(const sx of [-1,1])for(const q of [.20,.37])add(round,tailMat,sx*bodyW*q,.68,-L*.51,1,1,1);
+        extra.push({dispose:()=>round.dispose()});
+      }
+    }
+    if(style==='supra_a80'||style==='supercar') add(boxG,tailMat,0,.64,-L*.50,bodyW*.72,.09,.049);
+    const sp=def.spoiler||'lip';
+    if(sp==='duck'||sp==='active'||sp==='lip')add(boxG,bodyMat,0,.95,-L*.43,bodyW*.76,sp==='lip'?.045:.085,.19);
+    if(sp==='gt_large'||sp==='gt_small'){
+      const h=sp==='gt_large'?1.35:1.19,w=sp==='gt_large'?.91:.79;
+      add(boxG,trimMat,0,h,-L*.43,bodyW*w,.05,.40);
+      for(const sx of [-1,1])add(boxG,trimMat,sx*bodyW*.28,h-.20,-L*.43,.06,.30,.08);
+    }
+    if(def.hoodScoop||style==='rally_sedan')add(boxG,trimMat,0,.85,L*.17,bodyW*.21,.05,L*.12);
+    if(setup.exhaust>0)for(const sx of [-1,1])add(boxG,trimMat,sx*bodyW*.19,.24,-L*.52,.10,.08,.16);
+    // Four wheels, steering pivots, and individual wheel rotation.
+    const wheels=[],pivots=[],wheelGroups=[];
+    for(const sx of [-1,1])for(const sz of [-1,1]){
+      const p=new THREE.Group();p.position.set(sx*(W/2-.09),.38,sz*L*.31);
+      const w=new THREE.Mesh(wheelG,matWheel),rim=new THREE.Mesh(rimG,matRim);
+      if(setup.wheels===2)rim.scale.set(1.15,1.15,1.15);
+      if(setup.wheels===1)rim.scale.set(1.03,1.03,1.03);
+      w.add(rim);p.add(w);g.add(p);wheels.push(w);wheelGroups.push(p);
+      if(sz>0)pivots.push(p);
+    }
+    let bar=null;
+    if(opts.cop)bar=[add(boxG,matRed,.35,1.55,-L*.06,.50,.14,.30),add(boxG,matBlue,-.35,1.55,-L*.06,.50,.14,.30)];
+    if(opts.glow){
+      const um=new THREE.MeshBasicMaterial({color:opts.cop?0x4466ff:color,map:glowTex,transparent:true,opacity:.78,
+        blending:THREE.AdditiveBlending,depthWrite:false});
+      const u=new THREE.Mesh(flatG,um);u.position.y=.04;u.scale.set(W*1.9,1,L*1.35);g.add(u);extra.push(um);
+    }
+    if(opts.beam){
+      const bmt=new THREE.MeshBasicMaterial({color:0xfff0c8,map:beamT,transparent:true,opacity:.29,
+        blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+      const b=new THREE.Mesh(flatG,bmt);b.position.set(0,.06,L/2+11);b.scale.set(9,1,22);g.add(b);extra.push(bmt);
+    }
+    if(setup.ride){
+      for(const child of g.children)if(!wheelGroups.includes(child))child.position.y-=setup.ride*.06;
+    }
+    g.userData={bodyMat,tailMat,extra,wheels,pivots,bar,roll:0,pitch:0};
     return g;
   }
+
   function killMesh(m) {
     if (!m) return;
     scene.remove(m);
     if (m.userData) {
-      if (m.userData.bodyMat) m.userData.bodyMat.dispose();
-      if (m.userData.extra) m.userData.extra.forEach(x => x.dispose());
+      const mats=new Set([m.userData.bodyMat,...(m.userData.extra||[])]);
+      for(const material of mats) if(material&&typeof material.dispose==='function')material.dispose();
     }
   }
 
@@ -656,11 +835,11 @@
       drift: false, nitro: 1, boostVisual: 0, gear: 1, rpm: 0.15, yaw: 0, throttle: 0, driftTime: 0, brakeHold: 0, nosLocked: false, contact: false, hitX: 0, hitZ: 0, isPlayer: !!isPlayer, mesh: null };
   }
   const player = newCar(CARS[0], true);
-  function carColor(idx) { return save.colors[idx] != null ? save.colors[idx] : CARS[idx].color; }
+  function carColor(idx) { return save.colors[CARS[idx].id] != null ? save.colors[CARS[idx].id] : CARS[idx].color; }
   function setPlayerCar(idx, colorOverride) {
     killMesh(player.mesh);
-    player.def = CARS[idx];
-    player.mesh = buildCar(CARS[idx], colorOverride != null ? colorOverride : carColor(idx), { glow: true, beam: true });
+    player.def = tunedCar(idx);
+    player.mesh = buildCar(player.def, colorOverride != null ? colorOverride : carColor(idx), { glow: true, beam: true });
     scene.add(player.mesh);
   }
   function placeCar(c, x, z, h) {
@@ -691,37 +870,41 @@
   }
   function carStep(c, inp, dt) {
     const d = c.def, top = d.top * (c.boost ? 1.3 : 1);
+    const drive = d.drive || 'FR';
+    const driveGrip = drive === 'AWD' ? 1.10 : drive === 'FF' ? 1.05 : drive === 'MR' ? 0.98 : 1.0;
+    const turnBias = drive === 'MR' ? 1.08 : drive === 'FF' ? 0.98 : 1.0;
+    const driftBias = drive === 'FR' ? 1.14 : drive === 'MR' ? 1.05 : drive === 'AWD' ? 0.84 : 0.72;
     telemetry(c);
     const sp = Math.abs(c.vf), sa0 = c.sa;
     c.throttle += (inp.thr - c.throttle) * damp(inp.thr < 0 ? 24 : 7, dt);
     if (c.isPlayer) {
-      const trigger = (inp.hb && sp > 9) ||
-        (Math.abs(inp.steer) > 0.85 && inp.thr > 0 && sp > d.top * 0.7 && Math.abs(sa0) > 0.17);
+      const trigger = (inp.hb && sp > 9 * (drive === 'FF' ? 1.15 : 1)) ||
+        (Math.abs(inp.steer) > 0.85 && inp.thr > 0 && sp > d.top * (0.68 + (1 - driftBias) * 0.08) && Math.abs(sa0) > 0.17 / driftBias);
       if (trigger) { c.drift = true; c.driftTime = 0; }
       else c.driftTime += dt;
       if (sp < 6 || (c.driftTime > 0.22 && Math.abs(sa0) < 0.12)) c.drift = false;
     } else c.drift = false;
     c.steer += (inp.steer - c.steer) * damp(c.drift ? 12 : 9, dt);
     const dirF = clamp(c.vf / 5, -1, 1);
-    const targetYaw = -c.steer * d.turn * dirF / (1 + sp / (c.drift ? 48 : 34)) *
-      (c.drift ? 1.25 : 1) + (c.drift ? sa0 * (inp.hb ? 1.0 : 2.4) : 0);
+    const targetYaw = -c.steer * d.turn * turnBias * dirF / (1 + sp / (c.drift ? 48 : 34)) *
+      (c.drift ? 1.25 * driftBias * ((d.drift||7)/7) : 1) + (c.drift ? sa0 * (inp.hb ? 1.0 : 2.4) * driftBias * ((d.drift||7)/7) : 0);
     c.yaw += (clamp(targetYaw, -2.8, 2.8) - c.yaw) * damp(c.drift ? 9 : 12, dt);
     c.h = wrapA(c.h + c.yaw * dt);
     const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = fz, lz = -fx;
     let vf = c.vx * fx + c.vz * fz;
     let a = 0;
     if (inp.thr > 0) {
-      a = Math.max(0, c.throttle) * d.acc * (1 - 0.94 * Math.pow(clamp(vf / top, 0, 1.2), 2));
+      a = Math.max(0, c.throttle) * d.acc * (drive === 'AWD' ? 1.04 : drive === 'FF' ? 1.02 : 1) * (1 - 0.94 * Math.pow(clamp(vf / top, 0, 1.2), 2));
       if (vf < -0.5) a = 30;
       c.brakeHold = 0;
     } else if (inp.thr < 0) {
-      if (vf > 0.4) { a = inp.thr * 30; c.brakeHold = 0; }
+      if (vf > 0.4) { a = inp.thr * 30 * (d.brakeFactor||1); c.brakeHold = 0; }
       else { c.brakeHold += dt; a = c.brakeHold > 0.3 ? inp.thr * 9 * (1 - clamp(-vf / 14, 0, 1)) : 0; }
     } else c.brakeHold = 0;
     if (c.boost && vf > 0) a += 20;
     if (c.kick > 0) { if (vf > 0) a += 26; c.kick = Math.max(0, c.kick - dt); }
     if (inp.hb) a -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 8);
-    a -= vf * 0.04 + (Math.abs(vf) > 0.1 ? Math.sign(vf) * 0.6 : 0);
+    a -= vf * (0.04 * ((d.drag||.34)/.34)) + (Math.abs(vf) > 0.1 ? Math.sign(vf) * 0.6 : 0);
     c.ax = a;
     let nextVF = vf + a * dt;
     // A brake impulse must stop at zero before engaging reverse.
@@ -730,10 +913,10 @@
     c.vx += fx * (nextVF - vf); c.vz += fz * (nextVF - vf);
     const vl = c.vx * lx + c.vz * lz;
     const grip = c.drift ? (inp.hb ? 0.22 : 0.48) : (inp.hb ? 0.3 : 1);
-    const rem = vl * damp(d.grip * grip, dt);
+    const rem = vl * damp(d.grip * grip * driveGrip, dt);
     c.vx -= lx * rem; c.vz -= lz * rem;
     // No free longitudinal energy from lateral grip; hard turns bleed speed.
-    const cornerDrag = Math.exp(-Math.abs(c.yaw) * Math.min(sp / d.top, 1) * 0.07 * dt);
+    const cornerDrag = Math.exp(-Math.abs(c.yaw) * Math.min(sp / d.top, 1) * (drive === 'AWD' ? 0.064 : drive === 'MR' ? 0.074 : 0.07) * dt);
     c.vx *= cornerDrag; c.vz *= cornerDrag;
     const speed = Math.hypot(c.vx, c.vz), limit = top * (c.kick > 0 ? 1.12 : 1.03);
     if (speed > limit) { const k = (limit + (speed - limit) * Math.exp(-3 * dt)) / speed; c.vx *= k; c.vz *= k; }
@@ -1216,8 +1399,13 @@
       text = 'Recompensa: $' + rw.toLocaleString('pt-BR') + (first ? '' : ' (repetição: 25%)');
       if (first) {
         save.ch = Math.max(save.ch, m.idx + 1);
-        const u = m.ch.unlock;
-        if (u != null && !save.owned.includes(u)) { save.owned.push(u); text += '\nNovo carro na garagem: ' + CARS[u].name + '!'; }
+        const unlocks = Array.isArray(m.ch.unlock) ? m.ch.unlock : (m.ch.unlock != null ? [m.ch.unlock] : []);
+        for (const u of unlocks) {
+          if (!save.owned.includes(u)) {
+            save.owned.push(u);
+            text += '\nNovo carro na garagem: ' + CARS[u].name + '!';
+          }
+        }
       }
       persist();
       title = 'VITÓRIA!'; sfxWin();
@@ -1709,7 +1897,7 @@
         } else {
           $('mission').textContent = m.ch.name; $('pos').textContent = 'Despiste a polícia'; $('timer').textContent = fmt(m.t);
         }
-      } else { $('mission').textContent = 'Mundo aberto'; $('pos').textContent = ''; $('timer').textContent = ''; }
+      } else { $('mission').textContent = 'Mundo aberto'; $('pos').textContent = (CATALOG.regions.find(r=>r.id===save.region)||CATALOG.regions[0]).name+' · cenário fictício'; $('timer').textContent = ''; }
       $('heat').classList.toggle('hide', !pursuit.on);
       $('vig').classList.toggle('pursuit', pursuit.on);
       $('bustB').style.width = (clamp(pursuit.bust, 0, 1) * 100).toFixed(0) + '%';
@@ -1788,40 +1976,161 @@
     showMsg(player.def.name, 1200);
   }
 
-  let gIdx = 0, gReturn = 'menu';
-  function openGarage(ret) {
-    gReturn = ret; gIdx = save.cur;
-    setState('garage'); renderGarage();
-  }
-  function renderGarage() {
-    const c = CARS[gIdx], owned = save.owned.includes(gIdx);
-    setPlayerCar(gIdx, owned ? carColor(gIdx) : c.color);
-    $('gName').textContent = c.name;
-    const st = (l, v) => '<div class="stat"><span>' + l + '</span><div class="bar"><i style="width:' + v + '%"></i></div></div>';
-    $('gStats').innerHTML = st('Velocidade', c.top / 80 * 100) + st('Aceleração', c.acc / 30 * 100) + st('Manobra', c.turn / 2.7 * 100) + st('Aderência', c.grip / 8.5 * 100);
-    const sw = $('gSw'); sw.innerHTML = '';
-    if (owned) SWATCH.forEach(col => {
-      const b = document.createElement('button'); b.className = 'sw';
-      b.style.background = '#' + col.toString(16).padStart(6, '0');
-      b.onclick = () => { save.colors[gIdx] = col; persist(); renderGarage(); };
-      sw.appendChild(b);
+  let gIdx=0, gReturn='menu';
+  let garageFilter={culture:'all',tier:'all',brand:'all',search:'',owned:false};
+  const labels={JDM:'JDM · Japão',German:'German · Alemanha',British:'British · Reino Unido',American:'American · EUA',Brazilian:'Brazilian · Brasil'};
+  const normalizeSearch=v=>(v||'').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  function garageIndexes(){
+    const f=garageFilter;
+    return CARS.map((c,i)=>i).filter(i=>{
+      const c=CARS[i];
+      if(f.culture!=='all'&&f.culture!==c.culture)return false;
+      if(f.tier!=='all'&&f.tier!==c.class)return false;
+      if(f.brand!=='all'&&f.brand!==c.brand)return false;
+      if(f.owned&&!save.owned.includes(i))return false;
+      return !f.search || normalizeSearch([c.name,c.generation,c.focus,c.brand,c.culture].join(' ')).includes(normalizeSearch(f.search));
     });
-    const act = $('gAct');
-    if (owned) { act.textContent = save.cur === gIdx ? 'Em uso' : 'Selecionar'; act.disabled = save.cur === gIdx; }
-    else { act.textContent = 'Comprar $' + c.price.toLocaleString('pt-BR'); act.disabled = save.cash < c.price; }
-    $('gCash').textContent = '$ ' + save.cash.toLocaleString('pt-BR');
   }
-  $('gPrev').onclick = () => { gIdx = (gIdx + CARS.length - 1) % CARS.length; renderGarage(); };
-  $('gNext').onclick = () => { gIdx = (gIdx + 1) % CARS.length; renderGarage(); };
-  $('gAct').onclick = () => {
-    if (save.owned.includes(gIdx)) save.cur = gIdx;
-    else if (save.cash >= CARS[gIdx].price) { save.cash -= CARS[gIdx].price; save.owned.push(gIdx); save.cur = gIdx; sfxBank(); }
-    persist(); renderGarage();
+  function garageBrands(){
+    const brand=$('gBrand'); if(!brand)return;
+    const prev=brand.value||garageFilter.brand;
+    const available=new Set(CARS.filter(c=>garageFilter.culture==='all'||garageFilter.culture===c.culture).map(c=>c.brand));
+    brand.replaceChildren();
+    const all=document.createElement('option');all.value='all';all.textContent='Fabricantes (todos)';brand.append(all);
+    [...available].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(name=>{
+      const opt=document.createElement('option');opt.value=name;opt.textContent=name;brand.append(opt);
+    });
+    brand.value=available.has(prev)?prev:'all';garageFilter.brand=brand.value;
+  }
+  function openGarage(ret){
+    gReturn=ret;gIdx=save.cur;
+    setState('garage');
+    if($('gCulture'))$('gCulture').value=garageFilter.culture;
+    if($('gTier'))$('gTier').value=garageFilter.tier;
+    if($('gSearch'))$('gSearch').value=garageFilter.search;
+    if($('gOwned'))$('gOwned').checked=garageFilter.owned;
+    garageBrands();renderGarage();
+  }
+  function garageList(indices){
+    const list=$('gCarList');if(!list)return;
+    list.replaceChildren();
+    const matches=$('gMatches');if(matches)matches.textContent=indices.length+' veículo(s) encontrado(s) · '+CARS.length+' no catálogo';
+    const lim=50;
+    for(const i of indices.slice(0,lim)) {
+      const c=CARS[i],owned=save.owned.includes(i);
+      const b=document.createElement('button');b.type='button';b.className='garage-car'+(gIdx===i?' selected':'');
+      const t=document.createElement('strong');t.textContent=c.name;
+      const m=document.createElement('small');m.textContent=c.class+' · '+c.drive+' · '+(owned?'Na garagem':c.price.toLocaleString('pt-BR')+' CR');
+      b.append(t,m);b.onclick=()=>{gIdx=i;renderGarage();};list.append(b);
+    }
+    if(indices.length>lim){const more=document.createElement('p');more.className='muted-garage';more.textContent='Exibindo 50. Refine os filtros ou a busca para encontrar os demais.';list.append(more);}
+  }
+  function garageTuning(i,owned){
+    const root=$('gTuning');if(!root)return;
+    root.replaceChildren();
+    if(!owned){const msg=document.createElement('p');msg.className='muted-garage';msg.textContent='Adquira este veículo para instalar peças e preparar seu projeto.';root.append(msg);return;}
+    const setup=setupFor(i),c=CARS[i];
+    for(const [key,config] of Object.entries(MODS)) {
+      if(key==='bodykit'&&!c.compat.bodykit)continue;
+      const el=document.createElement('div');el.className='tune-item';
+      const title=document.createElement('div');title.className='tune-name';title.textContent=config.label;
+      const select=document.createElement('select');select.setAttribute('aria-label',config.label);select.dataset.part=key;
+      config.options.forEach((name,n)=>{
+        const op=document.createElement('option');op.value=n;
+        op.textContent=name+(n?' · '+config.prices[n].toLocaleString('pt-BR')+' CR':'');
+        op.selected=n===setup[key];
+        if(key==='induction'&&((n===1&&!c.compat.turbo)||(n===2&&!c.compat.supercharger)))op.disabled=true;
+        select.append(op);
+      });
+      select.addEventListener('change',()=>{
+        const level=Number(select.value),old=setupFor(i)[key];
+        if(!Number.isInteger(level)||old===level){renderGarage();return;}
+        const cost=config.prices[level];
+        if(cost>save.cash){showMsg('Créditos insuficientes para este upgrade.',1700);renderGarage();return;}
+        if(key==='induction'&&((level===1&&!c.compat.turbo)||(level===2&&!c.compat.supercharger))){renderGarage();return;}
+        // Sempre comprar uma nova configuração. Opção original restaura sem custo.
+        save.cash-=cost;
+        if(!save.mods[c.id])save.mods[c.id]={};
+        save.mods[c.id][key]=level;
+        persist();renderGarage();
+        if(cost)sfxBank();
+        showMsg(config.label+' · '+config.options[level],1700);
+      });
+      el.append(title,select);root.append(el);
+    }
+    const note=document.createElement('p');note.className='muted-garage';
+    note.textContent='Preparações de motor, transmissão, freios, pneus e aero alteram a física arcade. Rodas, altura, kits e aerofólios possuem representação visual simplificada. Para-choques, saias, capôs e acabamentos específicos ainda são planejamento.';
+    root.append(note);
+  }
+  function renderGarage(){
+    let indices=garageIndexes();
+    const hasResults=indices.length>0;
+    if(hasResults&&!indices.includes(gIdx))gIdx=indices[0];
+    garageList(indices);
+    const act=$('gAct');
+    if(!hasResults){
+      $('gName').textContent='Nenhum carro encontrado';
+      if($('gClass'))$('gClass').textContent='Altere os filtros para continuar';
+      if($('gDesc'))$('gDesc').textContent='';
+      if($('gBadges'))$('gBadges').replaceChildren();
+      $('gStats').replaceChildren();$('gSw').replaceChildren();$('gTuning')?.replaceChildren();
+      act.disabled=true;act.textContent='Sem resultados';return;
+    }
+    const c=CARS[gIdx], owned=save.owned.includes(gIdx),def=tunedCar(gIdx);
+    setPlayerCar(gIdx,owned?carColor(gIdx):c.color);
+    $('gName').textContent=c.name;
+    if($('gClass'))$('gClass').textContent=c.brand+' · '+c.generation+' · '+c.focus;
+    if($('gDesc'))$('gDesc').textContent=c.focus+' · '+c.market+'. Valores de desempenho: estimativas para o jogo.';
+    if($('gBadges'))$('gBadges').innerHTML=[c.culture,c.class,c.drive,owned?'NA GARAGEM':'À VENDA','MODELO PROCEDURAL'].map(v=>'<span class="car-badge">'+v+'</span>').join('');
+    const pct=(n,max)=>Math.max(8,Math.min(100,n/max*100));
+    const st=(l,v)=>'<div class="stat"><span>'+l+'</span><div class="bar"><i style="width:'+v+'%"></i></div></div>';
+    $('gStats').innerHTML=st('Velocidade',pct(def.top,100))+st('Aceleração',pct(def.acc,37))+st('Curvas',pct(def.turn,3.1))+st('Aderência',pct(def.grip,10));
+    if($('gSpecs')){
+      const spec=$('gSpecs');spec.replaceChildren();
+      const data=[['Origem da marca',c.country],['Cultura / mercado',c.culture+' / '+c.market],['Geração',c.generation],['Classe',c.class],
+        ['Tração',c.drive],['Massa',def.massKg+' kg'],['Aceleração (jogo)',def.acc.toFixed(1)+' un/s²'],['Potência',def.powerHp+' hp'],
+        ['Torque',def.torqueNm+' Nm'],['Velocidade',Math.round(def.top*3.6)+' km/h'],
+        ['Aderência',def.grip.toFixed(1)+'/10'],['Drift',def.drift.toFixed(1)+'/10'],
+        ['Coef. aero',def.drag.toFixed(3)],['Potencial',c.potential+'/5']];
+      data.forEach(([k,v])=>{
+        const row=document.createElement('div');row.className='spec-row';
+        const label=document.createElement('span');label.textContent=k;
+        const value=document.createElement('strong');value.textContent=v;
+        row.append(label,value);spec.append(row);
+      });
+    }
+    const sw=$('gSw');sw.replaceChildren();
+    if(owned)SWATCH.forEach(col=>{
+      const b=document.createElement('button');b.className='sw';b.style.background='#'+col.toString(16).padStart(6,'0');
+      b.title='Pintar carro';b.setAttribute('aria-label','Pintar carro com a cor #'+col.toString(16));
+      if(carColor(gIdx)===col)b.style.outline='2px solid #fff';
+      b.onclick=()=>{save.colors[c.id]=col;persist();renderGarage();};sw.append(b);
+    });
+    if(owned){act.textContent=save.cur===gIdx?'Em uso':'Selecionar carro';act.disabled=save.cur===gIdx;}
+    else{act.textContent='Comprar · '+c.price.toLocaleString('pt-BR')+' CR';act.disabled=save.cash<c.price;}
+    $('gCash').textContent=save.cash.toLocaleString('pt-BR')+' CR';
+    garageTuning(gIdx,owned);
+  }
+  function stepGarage(n){const list=garageIndexes();if(!list.length)return;const pos=list.indexOf(gIdx);gIdx=list[(pos+n+list.length)%list.length];renderGarage();}
+  $('gPrev').onclick=()=>stepGarage(-1);
+  $('gNext').onclick=()=>stepGarage(1);
+  $('gAct').onclick=()=>{
+    if(save.owned.includes(gIdx))save.cur=gIdx;
+    else if(save.cash>=CARS[gIdx].price){save.cash-=CARS[gIdx].price;save.owned.push(gIdx);save.cur=gIdx;sfxBank();}
+    persist();renderGarage();
   };
-  $('gBack').onclick = () => {
-    setPlayerCar(save.cur);
-    if (gReturn === 'pause') setState('pause'); else setState('menu');
-  };
+  $('gBack').onclick=()=>{setPlayerCar(save.cur);if(gReturn==='pause')setState('pause');else setState('menu');};
+  if($('gCulture'))$('gCulture').addEventListener('change',e=>{garageFilter.culture=e.target.value;garageBrands();renderGarage();});
+  if($('gTier'))$('gTier').addEventListener('change',e=>{garageFilter.tier=e.target.value;renderGarage();});
+  if($('gBrand'))$('gBrand').addEventListener('change',e=>{garageFilter.brand=e.target.value;renderGarage();});
+  if($('gSearch'))$('gSearch').addEventListener('input',e=>{garageFilter.search=e.target.value;renderGarage();});
+  if($('gOwned'))$('gOwned').addEventListener('change',e=>{garageFilter.owned=e.target.checked;renderGarage();});
+  if($('gClear'))$('gClear').addEventListener('click',()=>{
+    garageFilter={culture:'all',tier:'all',brand:'all',search:'',owned:false};
+    for(const id of ['gCulture','gTier','gBrand'])if($(id))$(id).value='all';
+    if($('gSearch'))$('gSearch').value='';if($('gOwned'))$('gOwned').checked=false;
+    garageBrands();renderGarage();
+  });
 
   $('bStory').onclick = () => { initAudio(); openStory(); };
   $('bStoryBack').onclick = () => setState('menu');
@@ -1835,7 +2144,7 @@
     catch (e) { console.warn(e); showMsg('Não foi possível entrar em tela cheia.'); }
   };
   $('bReset').onclick = () => {
-    if (confirm('Apagar todo o progresso?')) { try { localStorage.removeItem('np_save'); } catch (e) { console.warn('Armazenamento local indisponível.', e); } location.reload(); }
+    if (confirm('Apagar todo o progresso?')) { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(Q_KEY); localStorage.removeItem('np_save_jdm_v4'); } catch (e) { console.warn('Armazenamento local indisponível.', e); } location.reload(); }
   };
   $('pResume').onclick = togglePause;
   $('pGarage').onclick = () => openGarage('pause');
