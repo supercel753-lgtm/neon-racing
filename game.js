@@ -89,10 +89,14 @@
   try { const q = localStorage.getItem('np_q'); if (q !== null) quality = clamp(+q | 0, 0, 2); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
   const QN = ['Baixa', 'Média', 'Alta'];
   const QS = [
-    { pr: 0.6, R: 2, fog: 250 },
-    { pr: 0.85, R: 3, fog: 350 },
-    { pr: Math.min(window.devicePixelRatio || 1, 1.5), R: 4, fog: 450 }
+    { pr: 0.6, R: 2, fog: 250, post: 0, signs: 0, rain: 0 },
+    { pr: 0.85, R: 3, fog: 350, post: 1, signs: 90, rain: 1100 },
+    { pr: Math.min(window.devicePixelRatio || 1, 1.5), R: 4, fog: 450, post: 2, signs: 280, rain: 2400 }
   ];
+  // ?quality=0|1|2 trava a qualidade (desliga a redução automática) — útil para testes e capturas.
+  const urlParams = new URLSearchParams(location.search);
+  const lockQ = urlParams.has('quality') ? clamp(+urlParams.get('quality') | 0, 0, 2) : -1;
+  if (lockQ >= 0) quality = lockQ;
 
   /* ---------------- renderer / cena ---------------- */
   const canvas = $('c');
@@ -110,7 +114,138 @@
   scene.add(sun);
 
   // shared uniforms for point sprites
-  const U = { uScale: { value: 800 }, uFar: { value: 350 } };
+  const U = { uScale: { value: 800 }, uFar: { value: 350 }, uTime: { value: 0 } };
+
+  /* ---------------- pós-processamento próprio: bloom em 3 níveis, MSAA, aberração cromática,
+     blur radial de velocidade, color grading, vinheta e grão ---------------- */
+  const post = (() => {
+    const isGL2 = !!renderer.capabilities.isWebGL2;
+    const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null); quad.frustumCulled = false;
+    const pscene = new THREE.Scene(); pscene.add(quad);
+    const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+    const mk = (fs, uniforms, defines) => new THREE.ShaderMaterial({
+      vertexShader: VS, fragmentShader: fs, uniforms, defines: defines || {}, depthTest: false, depthWrite: false });
+    const bright = mk(`uniform sampler2D tDiffuse; uniform float uThr; uniform vec2 uOff; varying vec2 vUv;
+      void main(){
+        vec3 c = texture2D(tDiffuse, vUv + vec2(uOff.x, uOff.y)).rgb + texture2D(tDiffuse, vUv + vec2(-uOff.x, uOff.y)).rgb
+               + texture2D(tDiffuse, vUv + vec2(uOff.x, -uOff.y)).rgb + texture2D(tDiffuse, vUv - uOff).rgb;
+        c *= 0.25; float l = max(c.r, max(c.g, c.b));
+        gl_FragColor = vec4(c * smoothstep(uThr, uThr + 0.3, l), 1.0);
+      }`, { tDiffuse: { value: null }, uThr: { value: 0.68 }, uOff: { value: new THREE.Vector2() } });
+    const copy = mk('uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tDiffuse, vUv); }',
+      { tDiffuse: { value: null } });
+    const blur = mk(`uniform sampler2D tDiffuse; uniform vec2 uDir; varying vec2 vUv;
+      void main(){
+        vec3 s = texture2D(tDiffuse, vUv).rgb * 0.2270270270;
+        s += (texture2D(tDiffuse, vUv + uDir * 1.3846153846).rgb + texture2D(tDiffuse, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;
+        s += (texture2D(tDiffuse, vUv + uDir * 3.2307692308).rgb + texture2D(tDiffuse, vUv - uDir * 3.2307692308).rgb) * 0.0702702703;
+        gl_FragColor = vec4(s, 1.0);
+      }`, { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() } });
+    const comp = mk(`uniform sampler2D tScene; uniform sampler2D tB0; uniform sampler2D tB1; uniform sampler2D tB2;
+      uniform float uTime, uSpeed, uBoost, uHit, uBloom, uW1, uW2, uWet;
+      varying vec2 vUv;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 dir = vUv - 0.5; float d = length(dir);
+        float amt = (uSpeed * 0.035 + uBoost * 0.06) * smoothstep(0.12, 0.85, d);
+        float ca = (0.0010 + uSpeed * 0.0030 + uBoost * 0.0050 + uHit * 0.012) * d;
+        vec3 col = vec3(0.0);
+        for (int i = 0; i < TAPS; i++) {
+          float k = float(i) / float(TAPS);
+          vec2 o = vUv - dir * amt * k;
+          col += vec3(texture2D(tScene, o - dir * ca).r, texture2D(tScene, o).g, texture2D(tScene, o + dir * ca).b);
+        }
+        col /= float(TAPS);
+        vec3 bl = texture2D(tB0, vUv).rgb + texture2D(tB1, vUv).rgb * uW1 + texture2D(tB2, vUv).rgb * uW2;
+        col += bl * uBloom * (1.0 + uBoost * 0.5);
+        col *= 1.06;
+        vec3 a = (col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14);
+        col = mix(col, a, 0.5);
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(lum), col, 1.16);
+        col += vec3(-0.008, 0.004, 0.018) * (1.0 - lum);
+        col *= mix(vec3(1.0), vec3(1.04, 1.0, 0.95), lum);
+        col *= mix(0.50, 1.0, smoothstep(0.95, 0.30, d));
+        col = mix(col, vec3(0.9, 0.1, 0.08) * 0.55 + col * 0.5, uHit * smoothstep(0.15, 0.9, d) * 0.65);
+        col += (hash(vUv * 977.0 + uTime) - 0.5) * 0.028;
+        gl_FragColor = vec4(col, 1.0);
+      }`, {
+      tScene: { value: null }, tB0: { value: null }, tB1: { value: null }, tB2: { value: null },
+      uTime: U.uTime, uSpeed: { value: 0 }, uBoost: { value: 0 }, uHit: { value: 0 }, uBloom: { value: 0.85 },
+      uW1: { value: 0 }, uW2: { value: 0 }, uWet: { value: 0 } }, { TAPS: 3 });
+    let mode = 0, W = 0, H = 0, scn = null, lv = [];
+    const fx = comp.uniforms;
+    function free() {
+      if (scn) scn.dispose(); scn = null;
+      for (const l of lv) { l.a.dispose(); l.b.dispose(); }
+      lv = [];
+    }
+    function setup(w, h, m) {
+      if (w === W && h === H && m === mode) return;
+      W = w; H = h; mode = m; free();
+      if (!m) return;
+      const o = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false, generateMipmaps: false };
+      const so = Object.assign({}, o, { depthBuffer: true });
+      if (m === 2 && isGL2 && THREE.WebGLMultisampleRenderTarget) { scn = new THREE.WebGLMultisampleRenderTarget(w, h, so); scn.samples = 4; }
+      else scn = new THREE.WebGLRenderTarget(w, h, so);
+      const divs = m === 2 ? [2, 4, 8] : [4];
+      lv = divs.map(dv => {
+        const lw = Math.max(2, (w / dv) | 0), lh = Math.max(2, (h / dv) | 0);
+        return { a: new THREE.WebGLRenderTarget(lw, lh, o), b: new THREE.WebGLRenderTarget(lw, lh, o), w: lw, h: lh, dv };
+      });
+      comp.defines.TAPS = m === 2 ? 5 : 3; comp.needsUpdate = true;
+      bright.uniforms.uOff.value.set(lv[0].dv * 0.5 / w, lv[0].dv * 0.5 / h);
+      fx.uBloom.value = m === 2 ? 0.8 : 0.95;
+    }
+    function pass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(pscene, ortho); }
+    function render(scene, cam) {
+      if (!mode || !scn) { renderer.setRenderTarget(null); renderer.render(scene, cam); return; }
+      renderer.setRenderTarget(scn); renderer.render(scene, cam);
+      bright.uniforms.tDiffuse.value = scn.texture; pass(bright, lv[0].a);
+      for (let i = 0; i < lv.length; i++) {
+        const L = lv[i];
+        if (i > 0) { copy.uniforms.tDiffuse.value = lv[i - 1].a.texture; pass(copy, L.a); }
+        blur.uniforms.tDiffuse.value = L.a.texture; blur.uniforms.uDir.value.set(1 / L.w, 0); pass(blur, L.b);
+        blur.uniforms.tDiffuse.value = L.b.texture; blur.uniforms.uDir.value.set(0, 1 / L.h); pass(blur, L.a);
+      }
+      fx.tScene.value = scn.texture; fx.tB0.value = lv[0].a.texture;
+      fx.tB1.value = (lv[1] || lv[0]).a.texture; fx.tB2.value = (lv[2] || lv[0]).a.texture;
+      fx.uW1.value = lv[1] ? 0.8 : 0; fx.uW2.value = lv[2] ? 0.9 : 0;
+      pass(comp, null);
+    }
+    function dispose() { free(); [bright, copy, blur, comp].forEach(m => m.dispose()); quad.geometry.dispose(); }
+    return { setup, render, dispose, fx };
+  })();
+
+  /* ---------------- mapa de ambiente (reflexos de neon nos carros e no asfalto molhado) ---------------- */
+  let envTex = null;
+  try {
+    const es = new THREE.Scene();
+    es.add(new THREE.Mesh(new THREE.SphereGeometry(60, 24, 12), new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false,
+      vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `varying vec3 vP; void main(){
+        float y = normalize(vP).y;
+        vec3 c = mix(vec3(0.50, 0.20, 0.46), vec3(0.07, 0.09, 0.25), smoothstep(-0.05, 0.35, y));
+        c = mix(c, vec3(0.01, 0.02, 0.07), smoothstep(0.3, 0.95, y));
+        c = mix(vec3(0.03, 0.035, 0.05), c, smoothstep(-0.25, 0.0, y));
+        gl_FragColor = vec4(c, 1.0); }`
+    })));
+    const hdr = [[3.2, 0.4, 1.3], [0.3, 2.6, 3.2], [3.2, 1.7, 0.3], [1.3, 0.4, 3.2], [0.4, 3.2, 1.3], [3, 2.6, 2]];
+    for (let i = 0; i < 22; i++) {
+      const a = i / 22 * 6.2832 + hash2(i, 3, 5) * 0.3, c = hdr[i % hdr.length];
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(5 + hash2(i, 1, 9) * 9, 1.5 + hash2(i, 2, 9) * 5),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(c[0], c[1], c[2]), side: THREE.DoubleSide }));
+      m.position.set(Math.sin(a) * 42, 4 + hash2(i, 4, 9) * 24, Math.cos(a) * 42); m.lookAt(0, m.position.y, 0); es.add(m);
+    }
+    const pm = new THREE.PMREMGenerator(renderer);
+    envTex = pm.fromScene(es, 0.03).texture; pm.dispose();
+    es.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    scene.environment = envTex;
+  } catch (e) { console.warn('Mapa de ambiente indisponível; usando materiais simples.', e); envTex = null; }
+  renderer.setRenderTarget(null);
 
   let lastBlock = null, slowWindows = 0, renderNeeded = true;
   function resize() {
@@ -119,6 +254,8 @@
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    const s = renderer.getDrawingBufferSize(new THREE.Vector2());
+    post.setup(s.x, s.y, QS[quality].post);
   }
   function applyQuality(adaptive = false) {
     const q = QS[quality];
@@ -1733,7 +1870,7 @@
       fpsT += dt; fpsN++;
       if (fpsT > 2.5) {
         slowWindows = fpsN / fpsT < 34 ? slowWindows + 1 : 0;
-        if (slowWindows >= 2 && quality > 0) { quality--; slowWindows = 0; applyQuality(true); showMsg('Qualidade reduzida: ' + QN[quality], 1800); }
+        if (slowWindows >= 2 && quality > 0 && lockQ < 0) { quality--; slowWindows = 0; applyQuality(true); showMsg('Qualidade reduzida: ' + QN[quality], 1800); }
         fpsT = 0; fpsN = 0;
       }
     } else if (live) updateTraffic(sdt);
@@ -1758,8 +1895,13 @@
     if (state === 'playing') speedFx();
     if (state === 'playing' || state === 'pause') updateHUD(sdt);
     U.uScale.value = canvas.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+    U.uTime.value = tTotal % 1000;
     sky.position.copy(camera.position);
-    renderer.render(scene, camera);
+    const pf = post.fx, kf = damp(10, dt);
+    pf.uSpeed.value += (clamp(player.speed / (player.def.top * 1.2), 0, 1) * (state === 'playing' ? 1 : 0) - pf.uSpeed.value) * kf;
+    pf.uBoost.value += (player.boostVisual * (state === 'playing' ? 1 : 0) - pf.uBoost.value) * kf;
+    pf.uHit.value = Math.max(0, pf.uHit.value - dt * 2.2);
+    post.render(scene, camera);
   }
 
   listen(canvas, 'webglcontextlost', e => {
@@ -1785,6 +1927,7 @@
       for (const mat of mats) { materials.add(mat); for (const val of Object.values(mat)) if (val && val.isTexture) textures.add(val); }
     });
     geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
+    post.dispose(); if (envTex) envTex.dispose();
     renderer.dispose(); bcache.clear(); hudStyle.remove(); rpmBar.remove(); dom.clear();
   }
   listen(window, 'pagehide', e => { if (!e.persisted) dispose(); else { persist(); if (state === 'playing') togglePause(); } });
