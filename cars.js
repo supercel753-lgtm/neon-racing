@@ -1,0 +1,247 @@
+/* NEON PURSUIT — Catálogo local de veículos, edição Global Garage.
+   Os valores de massa, potência, torque, velocidade, aceleração, aderência, drift
+   e aerodinâmica são ESTIMATIVAS DE BALANCEAMENTO DO JOGO, não dados de fábrica.
+   O campo culture agrupa cultura do catálogo, não necessariamente país de fabricação. */
+'use strict';
+(function(global){
+  const SPEC_NOTE = 'Estimativas de balanceamento; não são fichas técnicas dos fabricantes.';
+  const BASE = {
+    D:{ hp:115, torque:145, mass:1080, top:44, acc:12.8, grip:6.25, drift:6.8, drag:0.37, turn:2.36, price:5000, potential:2 },
+    C:{ hp:185, torque:235, mass:1250, top:51, acc:15.6, grip:6.80, drift:7.0, drag:0.34, turn:2.43, price:14000, potential:3 },
+    B:{ hp:270, torque:350, mass:1390, top:61, acc:19.2, grip:7.25, drift:7.2, drag:0.33, turn:2.46, price:31000, potential:4 },
+    A:{ hp:390, torque:475, mass:1530, top:71, acc:23.3, grip:7.92, drift:7.4, drag:0.31, turn:2.56, price:64000, potential:4 },
+    S:{ hp:605, torque:670, mass:1560, top:83, acc:27.2, grip:8.52, drift:7.1, drag:0.29, turn:2.66, price:140000, potential:5 },
+    X:{ hp:830, torque:920, mass:1500, top:94, acc:30.0, grip:8.92, drift:7.2, drag:0.27, turn:2.76, price:270000, potential:5 }
+  };
+  const BODIES = {
+    hatch:{len:4.12,wid:1.70,mass:-130,turn:.07}, classic_hatch:{len:3.65,wid:1.58,mass:-240,turn:.10},
+    hot_hatch:{len:4.20,wid:1.77,mass:-90,turn:.09}, compact_coupe:{len:4.20,wid:1.66,mass:-130,turn:.06},
+    compact_sedan:{len:4.34,wid:1.70,mass:-45,turn:0},
+    boxy_coupe:{len:4.45,wid:1.77,mass:-25,turn:0}, coupe_round:{len:4.46,wid:1.79,mass:0,turn:0},
+    coupe_sharp:{len:4.42,wid:1.80,mass:-30,turn:.02},
+    fastback:{len:4.49,wid:1.77,mass:-40,turn:.05}, wedge:{len:4.32,wid:1.73,mass:-70,turn:.03},
+    sedan:{len:4.76,wid:1.84,mass:180,turn:-.05}, rally_sedan:{len:4.52,wid:1.80,mass:70,turn:0},
+    wagon:{len:4.75,wid:1.84,mass:220,turn:-.08},pickup:{len:4.62,wid:1.75,mass:120,turn:-.07},
+    suv:{len:4.66,wid:1.91,mass:430,turn:-.20},muscle:{len:4.85,wid:1.90,mass:220,turn:-.14},
+    roadster:{len:4.03,wid:1.72,mass:-210,turn:.15},midship:{len:4.28,wid:1.78,mass:-170,turn:.12},
+    classic_sport:{len:4.40,wid:1.78,mass:-60,turn:.06},
+    supercar:{len:4.46,wid:1.93,mass:-70,turn:.11},
+    curvy_coupe:{len:4.34,wid:1.80,mass:-75,turn:.08},
+    z_coupe:{len:4.32,wid:1.85,mass:70,turn:0},z_modern:{len:4.30,wid:1.87,mass:65,turn:.02},
+    supra_a80:{len:4.53,wid:1.82,mass:65,turn:.01},r34:{len:4.60,wid:1.80,mass:90,turn:.02},
+    nsx:{len:4.43,wid:1.82,mass:-110,turn:.10},modern_coupe:{len:4.42,wid:1.87,mass:25,turn:.05}
+  };
+  const COUNTRIES = {JDM:'Japão',German:'Alemanha',British:'Reino Unido',American:'Estados Unidos',Brazilian:'Brasil (cena automotiva)'};
+  const BRAND_ORIGINS=Object.freeze({
+    Toyota:'Japão',Honda:'Japão',Mazda:'Japão',Nissan:'Japão',Subaru:'Japão',Mitsubishi:'Japão',Lexus:'Japão',
+    BMW:'Alemanha','Mercedes-Benz':'Alemanha',Volkswagen:'Alemanha',Audi:'Alemanha',Porsche:'Alemanha',Opel:'Alemanha',
+    Mini:'Reino Unido',MINI:'Reino Unido',Lotus:'Reino Unido',Jaguar:'Reino Unido','Aston Martin':'Reino Unido',
+    McLaren:'Reino Unido',TVR:'Reino Unido',Caterham:'Reino Unido',Morgan:'Reino Unido',Vauxhall:'Reino Unido',
+    Ford:'Estados Unidos',Chevrolet:'Estados Unidos',Dodge:'Estados Unidos',Pontiac:'Estados Unidos',
+    Buick:'Estados Unidos',Cadillac:'Estados Unidos',Jeep:'Estados Unidos',Plymouth:'Estados Unidos',
+    Fiat:'Itália',Renault:'França',Peugeot:'França',Troller:'Brasil'
+  });
+  const CATEGORIES = ['pintura','acabamento','rodas','pneus','suspensao','altura','bodykit','parachoque','saias','aerofolio','capo','escapamento','motor','inducao','transmissao','freios','aerodinamica','reducaoPeso'];
+  const UNAVAILABLE_MECHANIC = ['acabamento','parachoque','saias','capo'];
+  const RAW = [
+    {"id":"jdm-toyota-ae86-trueno-levin-ae86","name":"Toyota AE86 Trueno/Levin","brand":"Toyota","model":"AE86 Trueno/Levin","generation":"AE86","focus":"Leveza e curvas","bodyStyle":"compact_coupe","drive":"FR","class":"D","culture":"JDM","market":"importado"},
+    {"id":"jdm-honda-civic-eg-ek-eg-ek","name":"Honda Civic EG/EK","brand":"Honda","model":"Civic EG/EK","generation":"EG/EK","focus":"Hatch de preparação","bodyStyle":"hatch","drive":"FF","class":"C","culture":"JDM","market":"importado"},
+    {"id":"jdm-toyota-corolla-ae101-ae111-ae101-ae111","name":"Toyota Corolla AE101/AE111","brand":"Toyota","model":"Corolla AE101/AE111","generation":"AE101/AE111","focus":"Compacto leve","bodyStyle":"compact_sedan","drive":"FF","class":"C","culture":"JDM","market":"importado"},
+    {"id":"jdm-mazda-mx-5-na-nb-nd","name":"Mazda MX-5 NA/NB/ND","brand":"Mazda","model":"MX-5","generation":"NA/NB/ND","focus":"Roadster ágil","bodyStyle":"roadster","drive":"FR","class":"C","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-silvia-s13-s13","name":"Nissan Silvia S13","brand":"Nissan","model":"Silvia S13","generation":"S13","focus":"Drift e baixo peso","bodyStyle":"fastback","drive":"FR","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-180sx-rps13","name":"Nissan 180SX RPS13","brand":"Nissan","model":"180SX","generation":"RPS13","focus":"Drift e personalização","bodyStyle":"fastback","drive":"FR","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-honda-integra-type-r-dc2","name":"Honda Integra Type R DC2","brand":"Honda","model":"Integra Type R","generation":"DC2","focus":"Curvas e baixo peso","bodyStyle":"coupe_sharp","drive":"FF","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-mazda-rx-7-fc3s","name":"Mazda RX-7 FC3S","brand":"Mazda","model":"RX-7","generation":"FC3S","focus":"Rotativo e drift","bodyStyle":"wedge","drive":"FR","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-silvia-s14-s14","name":"Nissan Silvia S14","brand":"Nissan","model":"Silvia S14","generation":"S14","focus":"Equilíbrio entre drift e grip","bodyStyle":"coupe_round","drive":"FR","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-toyota-chaser-jzx100","name":"Toyota Chaser JZX100","brand":"Toyota","model":"Chaser","generation":"JZX100","focus":"Sedã de drift","bodyStyle":"sedan","drive":"FR","class":"B","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-silvia-s15-s15","name":"Nissan Silvia S15","brand":"Nissan","model":"Silvia S15","generation":"S15","focus":"Drift competitivo","bodyStyle":"coupe_sharp","drive":"FR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-toyota-mr2-sw20","name":"Toyota MR2 SW20","brand":"Toyota","model":"MR2","generation":"SW20","focus":"Motor central e curvas","bodyStyle":"midship","drive":"MR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-skyline-gt-r-r32","name":"Nissan Skyline GT-R R32","brand":"Nissan","model":"Skyline GT-R","generation":"R32","focus":"Tração integral e estabilidade","bodyStyle":"boxy_coupe","drive":"AWD","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-honda-civic-type-r-fd2-fk8","name":"Honda Civic Type R FD2/FK8","brand":"Honda","model":"Civic Type R","generation":"FD2/FK8","focus":"Grip e circuitos","bodyStyle":"hot_hatch","drive":"FF","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-mazda-rx-7-fd3s","name":"Mazda RX-7 FD3S","brand":"Mazda","model":"RX-7","generation":"FD3S","focus":"Leveza e desempenho","bodyStyle":"curvy_coupe","drive":"FR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-350z-z33","name":"Nissan 350Z Z33","brand":"Nissan","model":"350Z","generation":"Z33","focus":"Drift e potência","bodyStyle":"z_coupe","drive":"FR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-subaru-impreza-wrx-sti-gc8-gdb","name":"Subaru Impreza WRX STI GC8/GDB","brand":"Subaru","model":"Impreza WRX STI","generation":"GC8/GDB","focus":"Tração integral","bodyStyle":"rally_sedan","drive":"AWD","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-mitsubishi-lancer-evolution-iv-vi-ix-x","name":"Mitsubishi Lancer Evolution IV/VI/IX/X","brand":"Mitsubishi","model":"Lancer Evolution","generation":"IV/VI/IX/X","focus":"Tração integral e arrancada","bodyStyle":"rally_sedan","drive":"AWD","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-toyota-supra-a80-mk4","name":"Toyota Supra A80/MK4","brand":"Toyota","model":"Supra","generation":"A80/MK4","focus":"Grande potencial de potência","bodyStyle":"supra_a80","drive":"FR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-370z-z34","name":"Nissan 370Z Z34","brand":"Nissan","model":"370Z","generation":"Z34","focus":"Esportivo equilibrado","bodyStyle":"z_modern","drive":"FR","class":"A","culture":"JDM","market":"importado"},
+    {"id":"jdm-nissan-skyline-gt-r-r34","name":"Nissan Skyline GT-R R34","brand":"Nissan","model":"Skyline GT-R","generation":"R34","focus":"Ícone de tuning e alta potência","bodyStyle":"r34","drive":"AWD","class":"S","culture":"JDM","market":"importado"},
+    {"id":"jdm-honda-nsx-na1","name":"Honda NSX NA1","brand":"Honda","model":"NSX","generation":"NA1","focus":"Supercarro de motor central","bodyStyle":"nsx","drive":"MR","class":"S","culture":"JDM","market":"importado"},
+    {"id":"jdm-toyota-supra-a90-mk5","name":"Toyota Supra A90/MK5","brand":"Toyota","model":"Supra","generation":"A90/MK5","focus":"Desempenho moderno","bodyStyle":"modern_coupe","drive":"FR","class":"S","culture":"JDM","market":"importado"},
+    {"id":"jdm-lexus-lfa-lfa","name":"Lexus LFA","brand":"Lexus","model":"LFA","generation":"LFA","focus":"Supercarro de alta performance","bodyStyle":"supercar","drive":"FR","class":"S","culture":"JDM","market":"importado"},
+    {"id":"german-bmw-m3-e30","name":"BMW M3 E30","brand":"BMW","model":"M3","generation":"E30","focus":"Leve e clássico","bodyStyle":"boxy_coupe","drive":"FR","class":"C","culture":"German","market":"importado"},
+    {"id":"german-bmw-m3-e36","name":"BMW M3 E36","brand":"BMW","model":"M3","generation":"E36","focus":"Equilíbrio entre potência e peso","bodyStyle":"coupe_round","drive":"FR","class":"B","culture":"German","market":"importado"},
+    {"id":"german-bmw-m3-e46","name":"BMW M3 E46","brand":"BMW","model":"M3","generation":"E46","focus":"Referência de dirigibilidade","bodyStyle":"coupe_sharp","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-bmw-m3-e92","name":"BMW M3 E92","brand":"BMW","model":"M3","generation":"E92","focus":"V8 aspirado","bodyStyle":"coupe_round","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-bmw-m4-f82","name":"BMW M4 F82","brand":"BMW","model":"M4","generation":"F82","focus":"Esportivo moderno","bodyStyle":"modern_coupe","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-bmw-m5-e39","name":"BMW M5 E39","brand":"BMW","model":"M5","generation":"E39","focus":"Sedã potente","bodyStyle":"sedan","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-bmw-m5-e60","name":"BMW M5 E60","brand":"BMW","model":"M5","generation":"E60","focus":"V10 aspirado","bodyStyle":"sedan","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-bmw-m5-f90","name":"BMW M5 F90","brand":"BMW","model":"M5","generation":"F90","focus":"Sedã de alta potência","bodyStyle":"sedan","drive":"AWD","class":"S","culture":"German","market":"importado"},
+    {"id":"german-bmw-m2-f87","name":"BMW M2 F87","brand":"BMW","model":"M2","generation":"F87","focus":"Compacto esportivo","bodyStyle":"coupe_sharp","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-mercedes-benz-190e-w201","name":"Mercedes-Benz 190E W201","brand":"Mercedes-Benz","model":"190E","generation":"W201","focus":"Clássico de competição","bodyStyle":"compact_sedan","drive":"FR","class":"B","culture":"German","market":"importado"},
+    {"id":"german-mercedes-benz-500e-w124","name":"Mercedes-Benz 500E W124","brand":"Mercedes-Benz","model":"500E","generation":"W124","focus":"Sedã potente","bodyStyle":"sedan","drive":"FR","class":"B","culture":"German","market":"importado"},
+    {"id":"german-mercedes-benz-c63-amg-w204","name":"Mercedes-Benz C63 AMG W204","brand":"Mercedes-Benz","model":"C63 AMG","generation":"W204","focus":"V8 e tração traseira","bodyStyle":"sedan","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-mercedes-benz-e55-amg-w211","name":"Mercedes-Benz E55 AMG W211","brand":"Mercedes-Benz","model":"E55 AMG","generation":"W211","focus":"Sedã superalimentado","bodyStyle":"sedan","drive":"FR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-mercedes-benz-amg-gt-c190","name":"Mercedes-Benz AMG GT C190","brand":"Mercedes-Benz","model":"AMG GT","generation":"C190","focus":"Esportivo de motor dianteiro","bodyStyle":"supercar","drive":"FR","class":"S","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-golf-gti-mk2","name":"Volkswagen Golf GTI Mk2","brand":"Volkswagen","model":"Golf GTI","generation":"Mk2","focus":"Hatch clássico","bodyStyle":"hatch","drive":"FF","class":"C","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-golf-gti-mk4","name":"Volkswagen Golf GTI Mk4","brand":"Volkswagen","model":"Golf GTI","generation":"Mk4","focus":"Hatch de preparação","bodyStyle":"hatch","drive":"FF","class":"C","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-golf-gti-mk7","name":"Volkswagen Golf GTI Mk7","brand":"Volkswagen","model":"Golf GTI","generation":"Mk7","focus":"Hatch moderno","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-golf-r32-mk4","name":"Volkswagen Golf R32 Mk4","brand":"Volkswagen","model":"Golf R32","generation":"Mk4","focus":"VR6 e tração integral","bodyStyle":"hot_hatch","drive":"AWD","class":"B","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-golf-r-mk7-mk8","name":"Volkswagen Golf R Mk7/Mk8","brand":"Volkswagen","model":"Golf R","generation":"Mk7/Mk8","focus":"Tração integral e aceleração","bodyStyle":"hot_hatch","drive":"AWD","class":"A","culture":"German","market":"importado"},
+    {"id":"german-volkswagen-corrado-vr6","name":"Volkswagen Corrado VR6","brand":"Volkswagen","model":"Corrado","generation":"VR6","focus":"Cupê esportivo","bodyStyle":"coupe_sharp","drive":"FF","class":"B","culture":"German","market":"importado"},
+    {"id":"german-audi-quattro-ur-quattro","name":"Audi Quattro Ur-Quattro","brand":"Audi","model":"Quattro","generation":"Ur-Quattro","focus":"Tração integral histórica","bodyStyle":"boxy_coupe","drive":"AWD","class":"B","culture":"German","market":"importado"},
+    {"id":"german-audi-rs4-b5","name":"Audi RS4 B5","brand":"Audi","model":"RS4","generation":"B5","focus":"Perua de alto desempenho","bodyStyle":"wagon","drive":"AWD","class":"A","culture":"German","market":"importado"},
+    {"id":"german-audi-rs6-avant-c7","name":"Audi RS6 Avant C7","brand":"Audi","model":"RS6 Avant","generation":"C7","focus":"Perua potente","bodyStyle":"wagon","drive":"AWD","class":"S","culture":"German","market":"importado"},
+    {"id":"german-audi-tt-8n","name":"Audi TT 8N","brand":"Audi","model":"TT","generation":"8N","focus":"Esportivo compacto","bodyStyle":"z_coupe","drive":"AWD","class":"B","culture":"German","market":"importado"},
+    {"id":"german-porsche-911-turbo-930","name":"Porsche 911 Turbo 930","brand":"Porsche","model":"911 Turbo","generation":"930","focus":"Clássico turbo","bodyStyle":"classic_sport","drive":"RR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-porsche-911-964-993","name":"Porsche 911 964/993","brand":"Porsche","model":"911","generation":"964/993","focus":"Esportivo clássico","bodyStyle":"classic_sport","drive":"RR","class":"A","culture":"German","market":"importado"},
+    {"id":"german-porsche-911-gt3-997-992","name":"Porsche 911 GT3 997/992","brand":"Porsche","model":"911 GT3","generation":"997/992","focus":"Circuitos","bodyStyle":"supercar","drive":"RR","class":"S","culture":"German","market":"importado"},
+    {"id":"german-porsche-cayman-gt4-981-718","name":"Porsche Cayman GT4 981/718","brand":"Porsche","model":"Cayman GT4","generation":"981/718","focus":"Precisão em curvas","bodyStyle":"midship","drive":"MR","class":"S","culture":"German","market":"importado"},
+    {"id":"german-opel-kadett-c","name":"Opel Kadett C","brand":"Opel","model":"Kadett","generation":"C","focus":"Clássico de preparação","bodyStyle":"compact_coupe","drive":"FR","class":"C","culture":"German","market":"importado"},
+    {"id":"german-opel-manta-b","name":"Opel Manta B","brand":"Opel","model":"Manta","generation":"B","focus":"Cupê clássico","bodyStyle":"boxy_coupe","drive":"FR","class":"C","culture":"German","market":"importado"},
+    {"id":"british-mini-cooper-classic","name":"Mini Cooper Classic","brand":"Mini","model":"Cooper","generation":"Classic","focus":"Compacto urbano","bodyStyle":"classic_hatch","drive":"FF","class":"D","culture":"British","market":"importado"},
+    {"id":"british-mini-cooper-s-r53","name":"MINI Cooper S R53","brand":"MINI","model":"Cooper S","generation":"R53","focus":"Hatch superalimentado","bodyStyle":"hatch","drive":"FF","class":"C","culture":"British","market":"importado"},
+    {"id":"british-lotus-elise-s1-s2","name":"Lotus Elise S1/S2","brand":"Lotus","model":"Elise","generation":"S1/S2","focus":"Leveza e curvas","bodyStyle":"roadster","drive":"MR","class":"A","culture":"British","market":"importado"},
+    {"id":"british-lotus-exige-s2","name":"Lotus Exige S2","brand":"Lotus","model":"Exige","generation":"S2","focus":"Esportivo focado em pista","bodyStyle":"midship","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-lotus-evora-evora","name":"Lotus Evora","brand":"Lotus","model":"Evora","generation":"Evora","focus":"Esportivo equilibrado","bodyStyle":"midship","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-jaguar-e-type-series-1","name":"Jaguar E-Type Series 1","brand":"Jaguar","model":"E-Type","generation":"Series 1","focus":"Clássico esportivo","bodyStyle":"classic_sport","drive":"FR","class":"B","culture":"British","market":"importado"},
+    {"id":"british-jaguar-xj220-xj220","name":"Jaguar XJ220","brand":"Jaguar","model":"XJ220","generation":"XJ220","focus":"Supercarro dos anos 1990","bodyStyle":"supercar","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-jaguar-xkr-x100","name":"Jaguar XKR X100","brand":"Jaguar","model":"XKR","generation":"X100","focus":"Cupê potente","bodyStyle":"modern_coupe","drive":"FR","class":"A","culture":"British","market":"importado"},
+    {"id":"british-jaguar-f-type-r-f-type","name":"Jaguar F-Type R","brand":"Jaguar","model":"F-Type R","generation":"F-Type","focus":"Esportivo moderno","bodyStyle":"modern_coupe","drive":"FR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-aston-martin-db5-db5","name":"Aston Martin DB5","brand":"Aston Martin","model":"DB5","generation":"DB5","focus":"Clássico de luxo","bodyStyle":"classic_sport","drive":"FR","class":"B","culture":"British","market":"importado"},
+    {"id":"british-aston-martin-v8-vantage-v8-vantage","name":"Aston Martin V8 Vantage","brand":"Aston Martin","model":"V8 Vantage","generation":"V8 Vantage","focus":"Esportivo de motor dianteiro","bodyStyle":"coupe_round","drive":"FR","class":"A","culture":"British","market":"importado"},
+    {"id":"british-aston-martin-dbs-dbs","name":"Aston Martin DBS","brand":"Aston Martin","model":"DBS","generation":"DBS","focus":"Grand tourer","bodyStyle":"modern_coupe","drive":"FR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-aston-martin-v12-vantage-v12-vantage","name":"Aston Martin V12 Vantage","brand":"Aston Martin","model":"V12 Vantage","generation":"V12 Vantage","focus":"Esportivo compacto e potente","bodyStyle":"modern_coupe","drive":"FR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-mclaren-f1-f1","name":"McLaren F1","brand":"McLaren","model":"F1","generation":"F1","focus":"Supercarro lendário","bodyStyle":"supercar","drive":"MR","class":"X","culture":"British","market":"importado"},
+    {"id":"british-mclaren-mp4-12c-mp4-12c","name":"McLaren MP4-12C","brand":"McLaren","model":"MP4-12C","generation":"MP4-12C","focus":"Supercarro moderno","bodyStyle":"supercar","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-mclaren-570s-570s","name":"McLaren 570S","brand":"McLaren","model":"570S","generation":"570S","focus":"Desempenho de rua","bodyStyle":"supercar","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-mclaren-720s-720s","name":"McLaren 720S","brand":"McLaren","model":"720S","generation":"720S","focus":"Alta performance","bodyStyle":"supercar","drive":"MR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-mclaren-p1-p1","name":"McLaren P1","brand":"McLaren","model":"P1","generation":"P1","focus":"Hipercarro híbrido","bodyStyle":"supercar","drive":"MR","class":"X","culture":"British","market":"importado"},
+    {"id":"british-tvr-griffith-griffith","name":"TVR Griffith","brand":"TVR","model":"Griffith","generation":"Griffith","focus":"Esportivo leve","bodyStyle":"roadster","drive":"FR","class":"A","culture":"British","market":"importado"},
+    {"id":"british-tvr-sagaris-sagaris","name":"TVR Sagaris","brand":"TVR","model":"Sagaris","generation":"Sagaris","focus":"Esportivo de alto desempenho","bodyStyle":"supercar","drive":"FR","class":"S","culture":"British","market":"importado"},
+    {"id":"british-caterham-seven-seven","name":"Caterham Seven","brand":"Caterham","model":"Seven","generation":"Seven","focus":"Peso extremamente baixo","bodyStyle":"roadster","drive":"FR","class":"B","culture":"British","market":"importado"},
+    {"id":"british-morgan-plus-four-plus-four","name":"Morgan Plus Four","brand":"Morgan","model":"Plus Four","generation":"Plus Four","focus":"Roadster clássico","bodyStyle":"roadster","drive":"FR","class":"C","culture":"British","market":"importado"},
+    {"id":"british-vauxhall-astra-vxr-astra-h-j","name":"Vauxhall Astra VXR Astra H/J","brand":"Vauxhall","model":"Astra VXR","generation":"Astra H/J","focus":"Hatch esportivo","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"British","market":"importado"},
+    {"id":"british-ford-escort-rs-cosworth-escort-rs-cosworth","name":"Ford Escort RS Cosworth","brand":"Ford","model":"Escort RS Cosworth","generation":"Escort RS Cosworth","focus":"Rally e tração integral","bodyStyle":"rally_sedan","drive":"AWD","class":"A","culture":"British","market":"importado"},
+    {"id":"british-ford-sierra-rs-cosworth-sierra-rs-cosworth","name":"Ford Sierra RS Cosworth","brand":"Ford","model":"Sierra RS Cosworth","generation":"Sierra RS Cosworth","focus":"Sedã/cupê de competição","bodyStyle":"sedan","drive":"FR","class":"B","culture":"British","market":"importado"},
+    {"id":"american-ford-mustang-fox-body","name":"Ford Mustang Fox Body","brand":"Ford","model":"Mustang","generation":"Fox Body","focus":"Preparação de rua e arrancada","bodyStyle":"muscle","drive":"FR","class":"C","culture":"American","market":"importado"},
+    {"id":"american-ford-mustang-sn95","name":"Ford Mustang SN95","brand":"Ford","model":"Mustang","generation":"SN95","focus":"Muscle car acessível","bodyStyle":"muscle","drive":"FR","class":"C","culture":"American","market":"importado"},
+    {"id":"american-ford-mustang-new-edge","name":"Ford Mustang New Edge","brand":"Ford","model":"Mustang","generation":"New Edge","focus":"Preparação de rua","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-ford-mustang-s197-gt","name":"Ford Mustang S197 GT","brand":"Ford","model":"Mustang","generation":"S197 GT","focus":"V8 e tração traseira","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-ford-mustang-s550-gt","name":"Ford Mustang S550 GT","brand":"Ford","model":"Mustang","generation":"S550 GT","focus":"Muscle car moderno","bodyStyle":"muscle","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-ford-mustang-shelby-gt500-20072020","name":"Ford Mustang Shelby GT500 2007–2020","brand":"Ford","model":"Mustang Shelby GT500","generation":"2007–2020","focus":"Alta potência","bodyStyle":"muscle","drive":"FR","class":"S","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-camaro-1969","name":"Chevrolet Camaro 1969","brand":"Chevrolet","model":"Camaro","generation":"1969","focus":"Muscle car clássico","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-camaro-iroc-z","name":"Chevrolet Camaro IROC-Z","brand":"Chevrolet","model":"Camaro","generation":"IROC-Z","focus":"Ícone dos anos 1980","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-camaro-ss-20102023","name":"Chevrolet Camaro SS 2010–2023","brand":"Chevrolet","model":"Camaro SS","generation":"2010–2023","focus":"Muscle car moderno","bodyStyle":"muscle","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-camaro-zl1-zl1","name":"Chevrolet Camaro ZL1","brand":"Chevrolet","model":"Camaro ZL1","generation":"ZL1","focus":"Alta performance","bodyStyle":"muscle","drive":"FR","class":"S","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-corvette-c4","name":"Chevrolet Corvette C4","brand":"Chevrolet","model":"Corvette","generation":"C4","focus":"Esportivo clássico","bodyStyle":"classic_sport","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-corvette-z06-c5-z06","name":"Chevrolet Corvette Z06 C5 Z06","brand":"Chevrolet","model":"Corvette Z06","generation":"C5 Z06","focus":"Leveza e potência","bodyStyle":"classic_sport","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-corvette-z06-c6-z06","name":"Chevrolet Corvette Z06 C6 Z06","brand":"Chevrolet","model":"Corvette Z06","generation":"C6 Z06","focus":"V8 e desempenho","bodyStyle":"modern_coupe","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-corvette-z06-c7-z06","name":"Chevrolet Corvette Z06 C7 Z06","brand":"Chevrolet","model":"Corvette Z06","generation":"C7 Z06","focus":"Circuito e rua","bodyStyle":"modern_coupe","drive":"FR","class":"S","culture":"American","market":"importado"},
+    {"id":"american-dodge-charger-19681970","name":"Dodge Charger 1968–1970","brand":"Dodge","model":"Charger","generation":"1968–1970","focus":"Muscle car clássico","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-dodge-challenger-1970","name":"Dodge Challenger 1970","brand":"Dodge","model":"Challenger","generation":"1970","focus":"Clássico de arrancada","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-dodge-challenger-srt-hellcat-hellcat","name":"Dodge Challenger SRT Hellcat","brand":"Dodge","model":"Challenger SRT Hellcat","generation":"Hellcat","focus":"Potência elevada","bodyStyle":"muscle","drive":"FR","class":"S","culture":"American","market":"importado"},
+    {"id":"american-dodge-viper-rt-10","name":"Dodge Viper RT/10","brand":"Dodge","model":"Viper","generation":"RT/10","focus":"V10 e tração traseira","bodyStyle":"roadster","drive":"FR","class":"S","culture":"American","market":"importado"},
+    {"id":"american-dodge-viper-acr-acr","name":"Dodge Viper ACR","brand":"Dodge","model":"Viper ACR","generation":"ACR","focus":"Foco em pista","bodyStyle":"supercar","drive":"FR","class":"X","culture":"American","market":"importado"},
+    {"id":"american-pontiac-firebird-trans-am","name":"Pontiac Firebird Trans Am","brand":"Pontiac","model":"Firebird","generation":"Trans Am","focus":"Muscle car clássico","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-pontiac-gto-19641970","name":"Pontiac GTO 1964–1970","brand":"Pontiac","model":"GTO","generation":"1964–1970","focus":"Muscle car histórico","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-pontiac-g8-gxp-g8-gxp","name":"Pontiac G8 GXP","brand":"Pontiac","model":"G8 GXP","generation":"G8 GXP","focus":"Sedã esportivo","bodyStyle":"sedan","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-buick-grand-national-gnx-gnx","name":"Buick Grand National GNX","brand":"Buick","model":"Grand National GNX","generation":"GNX","focus":"V6 turbo clássico","bodyStyle":"coupe_round","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-impala-1964","name":"Chevrolet Impala 1964","brand":"Chevrolet","model":"Impala","generation":"1964","focus":"Lowrider e cultura custom","bodyStyle":"sedan","drive":"FR","class":"D","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-monte-carlo-ss","name":"Chevrolet Monte Carlo SS","brand":"Chevrolet","model":"Monte Carlo","generation":"SS","focus":"Cupê de rua","bodyStyle":"coupe_round","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-cadillac-cts-v-cts-v","name":"Cadillac CTS-V","brand":"Cadillac","model":"CTS-V","generation":"CTS-V","focus":"Sedã potente","bodyStyle":"sedan","drive":"FR","class":"A","culture":"American","market":"importado"},
+    {"id":"american-jeep-grand-cherokee-srt-srt","name":"Jeep Grand Cherokee SRT","brand":"Jeep","model":"Grand Cherokee SRT","generation":"SRT","focus":"SUV de alta performance","bodyStyle":"suv","drive":"AWD","class":"A","culture":"American","market":"importado"},
+    {"id":"american-plymouth-barracuda-1970","name":"Plymouth Barracuda 1970","brand":"Plymouth","model":"Barracuda","generation":"1970","focus":"Muscle car clássico","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-chevrolet-nova-1969","name":"Chevrolet Nova 1969","brand":"Chevrolet","model":"Nova","generation":"1969","focus":"Arrancada","bodyStyle":"muscle","drive":"FR","class":"B","culture":"American","market":"importado"},
+    {"id":"american-ford-crown-victoria-p71","name":"Ford Crown Victoria P71","brand":"Ford","model":"Crown Victoria","generation":"P71","focus":"Viatura policial","bodyStyle":"sedan","drive":"FR","class":"C","culture":"American","market":"importado"},
+    {"id":"brazilian-chevrolet-opala-especial-comodoro","name":"Chevrolet Opala Especial/Comodoro","brand":"Chevrolet","model":"Opala","generation":"Especial/Comodoro","focus":"Clássico de rua","bodyStyle":"sedan","drive":"FR","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-opala-ss-4-1","name":"Chevrolet Opala SS 4.1","brand":"Chevrolet","model":"Opala SS","generation":"4.1","focus":"Arrancada e preparação","bodyStyle":"muscle","drive":"FR","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-caravan-ss-ss","name":"Chevrolet Caravan SS","brand":"Chevrolet","model":"Caravan SS","generation":"SS","focus":"Perua clássica preparada","bodyStyle":"wagon","drive":"FR","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-chevette-hatch-sedan","name":"Chevrolet Chevette Hatch/Sedan","brand":"Chevrolet","model":"Chevette","generation":"Hatch/Sedan","focus":"Drift e arrancada","bodyStyle":"compact_sedan","drive":"FR","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-kadett-gsi-gsi","name":"Chevrolet Kadett GSi","brand":"Chevrolet","model":"Kadett GSi","generation":"GSi","focus":"Esportivo nacional","bodyStyle":"hatch","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-monza-s-r-s-r","name":"Chevrolet Monza S/R","brand":"Chevrolet","model":"Monza S/R","generation":"S/R","focus":"Cupê esportivo brasileiro","bodyStyle":"coupe_round","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-omega-cd-4-1","name":"Chevrolet Omega CD 4.1","brand":"Chevrolet","model":"Omega CD","generation":"4.1","focus":"Sedã potente","bodyStyle":"sedan","drive":"FR","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-vectra-gsi-gsi","name":"Chevrolet Vectra GSi","brand":"Chevrolet","model":"Vectra GSi","generation":"GSi","focus":"Sedã esportivo","bodyStyle":"sedan","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-fusca-1300-1600","name":"Volkswagen Fusca 1300/1600","brand":"Volkswagen","model":"Fusca","generation":"1300/1600","focus":"Clássico customizado","bodyStyle":"classic_hatch","drive":"RR","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-brasilia-brasilia","name":"Volkswagen Brasília","brand":"Volkswagen","model":"Brasília","generation":"Brasília","focus":"Projeto custom","bodyStyle":"classic_hatch","drive":"RR","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-gol-gt-gts","name":"Volkswagen Gol GT/GTS","brand":"Volkswagen","model":"Gol","generation":"GT/GTS","focus":"Hatch esportivo clássico","bodyStyle":"hatch","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-gol-gti-1989","name":"Volkswagen Gol GTI 1989","brand":"Volkswagen","model":"Gol GTI","generation":"1989","focus":"Ícone nacional","bodyStyle":"hatch","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-gol-gti-16v-16v","name":"Volkswagen Gol GTI 16V","brand":"Volkswagen","model":"Gol GTI 16V","generation":"16V","focus":"Hatch esportivo","bodyStyle":"hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-saveiro-geracao-quadrada","name":"Volkswagen Saveiro Geração quadrada","brand":"Volkswagen","model":"Saveiro","generation":"Geração quadrada","focus":"Picape customizada","bodyStyle":"pickup","drive":"FF","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-voyage-gts-gts","name":"Volkswagen Voyage GTS","brand":"Volkswagen","model":"Voyage GTS","generation":"GTS","focus":"Sedã esportivo clássico","bodyStyle":"compact_sedan","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-santana-executivo-2-0","name":"Volkswagen Santana Executivo/2.0","brand":"Volkswagen","model":"Santana","generation":"Executivo/2.0","focus":"Sedã preparado","bodyStyle":"sedan","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-passat-ts-ts","name":"Volkswagen Passat TS","brand":"Volkswagen","model":"Passat TS","generation":"TS","focus":"Clássico esportivo","bodyStyle":"coupe_round","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-volkswagen-parati-gls-gls","name":"Volkswagen Parati GLS","brand":"Volkswagen","model":"Parati GLS","generation":"GLS","focus":"Perua preparada","bodyStyle":"wagon","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-uno-1-5-r-1-5-r","name":"Fiat Uno 1.5 R","brand":"Fiat","model":"Uno 1.5 R","generation":"1.5 R","focus":"Hatch leve","bodyStyle":"hatch","drive":"FF","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-uno-turbo-i-e-turbo-i-e","name":"Fiat Uno Turbo i.e.","brand":"Fiat","model":"Uno Turbo i.e.","generation":"Turbo i.e.","focus":"Turbo nacional","bodyStyle":"hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-tempra-turbo-turbo","name":"Fiat Tempra Turbo","brand":"Fiat","model":"Tempra Turbo","generation":"Turbo","focus":"Sedã turbo","bodyStyle":"sedan","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-marea-turbo-turbo","name":"Fiat Marea Turbo","brand":"Fiat","model":"Marea Turbo","generation":"Turbo","focus":"Sedã/cupê de preparação","bodyStyle":"sedan","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-punto-t-jet-t-jet","name":"Fiat Punto T-Jet","brand":"Fiat","model":"Punto T-Jet","generation":"T-Jet","focus":"Hatch turbo","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-fiat-palio-1-8r-1-8r","name":"Fiat Palio 1.8R","brand":"Fiat","model":"Palio 1.8R","generation":"1.8R","focus":"Hatch esportivo","bodyStyle":"hatch","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-ford-escort-xr3-xr3","name":"Ford Escort XR3","brand":"Ford","model":"Escort XR3","generation":"XR3","focus":"Esportivo clássico","bodyStyle":"hatch","drive":"FF","class":"C","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-ford-escort-rs-cosworth-cosworth-referencia-internacional","name":"Ford Escort RS Cosworth Cosworth (referência internacional)","brand":"Ford","model":"Escort RS Cosworth","generation":"Cosworth (referência internacional)","focus":"Versão estrangeira não nacional","bodyStyle":"rally_sedan","drive":"AWD","class":"A","culture":"Brazilian","market":"referência internacional"},
+    {"id":"brazilian-ford-verona-glx-glx","name":"Ford Verona GLX","brand":"Ford","model":"Verona GLX","generation":"GLX","focus":"Sedã compacto","bodyStyle":"compact_sedan","drive":"FF","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-ford-maverick-gt-v8","name":"Ford Maverick GT V8","brand":"Ford","model":"Maverick GT","generation":"V8","focus":"Muscle car brasileiro","bodyStyle":"muscle","drive":"FR","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-ford-corcel-ii-gt-gt","name":"Ford Corcel II GT","brand":"Ford","model":"Corcel II GT","generation":"GT","focus":"Clássico de rua","bodyStyle":"coupe_round","drive":"FF","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-ford-del-rey-ghia-ghia","name":"Ford Del Rey Ghia","brand":"Ford","model":"Del Rey Ghia","generation":"Ghia","focus":"Sedã clássico","bodyStyle":"sedan","drive":"FF","class":"D","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-renault-sandero-rs-rs","name":"Renault Sandero RS","brand":"Renault","model":"Sandero RS","generation":"RS","focus":"Hatch esportivo","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-renault-clio-rs-rs-referencia-internacional","name":"Renault Clio RS RS (referência internacional)","brand":"Renault","model":"Clio RS","generation":"RS (referência internacional)","focus":"Referência esportiva internacional","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"Brazilian","market":"referência internacional"},
+    {"id":"brazilian-peugeot-206-gti-s16-gti-s16","name":"Peugeot 206 GTi/S16","brand":"Peugeot","model":"206 GTi/S16","generation":"GTi/S16","focus":"Hatch leve","bodyStyle":"hot_hatch","drive":"FF","class":"C","culture":"Brazilian","market":"importado"},
+    {"id":"brazilian-honda-civic-vti-si-vti-si","name":"Honda Civic VTi/Si","brand":"Honda","model":"Civic VTi/Si","generation":"VTi/Si","focus":"Preparação aspirada","bodyStyle":"hatch","drive":"FF","class":"B","culture":"Brazilian","market":"importado"},
+    {"id":"brazilian-honda-civic-si-si-brasileiro","name":"Honda Civic Si Si brasileiro","brand":"Honda","model":"Civic Si","generation":"Si brasileiro","focus":"Esportivo nacional","bodyStyle":"coupe_round","drive":"FF","class":"B","culture":"Brazilian","market":"vendido no Brasil"},
+    {"id":"brazilian-toyota-corolla-xrs-xrs","name":"Toyota Corolla XRS","brand":"Toyota","model":"Corolla XRS","generation":"XRS","focus":"Sedã esportivo","bodyStyle":"sedan","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-mitsubishi-lancer-ralliart-evolution-ralliart-evolution","name":"Mitsubishi Lancer Ralliart/Evolution","brand":"Mitsubishi","model":"Lancer Ralliart/Evolution","generation":"Ralliart/Evolution","focus":"Referência de tração integral","bodyStyle":"rally_sedan","drive":"AWD","class":"A","culture":"Brazilian","market":"importado"},
+    {"id":"brazilian-volkswagen-golf-gti-gti-nacional","name":"Volkswagen Golf GTI GTI nacional","brand":"Volkswagen","model":"Golf GTI","generation":"GTI nacional","focus":"Hatch esportivo","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-chevrolet-astra-gsi-gsi","name":"Chevrolet Astra GSi","brand":"Chevrolet","model":"Astra GSi","generation":"GSi","focus":"Hatch esportivo","bodyStyle":"hot_hatch","drive":"FF","class":"B","culture":"Brazilian","market":"nacional"},
+    {"id":"brazilian-troller-t4-t4","name":"Troller T4","brand":"Troller","model":"T4","generation":"T4","focus":"Off-road brasileiro","bodyStyle":"suv","drive":"4WD","class":"B","culture":"Brazilian","market":"nacional"},
+  ];
+  function hash(s){ let v=2166136261; for(let i=0;i<s.length;i++) v=Math.imul(v ^ s.charCodeAt(i),16777619);return v>>>0; }
+  function clamp(n,a,b){return Math.min(b,Math.max(a,n));}
+  const vehicles = RAW.map((r,index)=>{
+    const h=hash(r.id), b=BASE[r.class], body=BODIES[r.bodyStyle]||BODIES.coupe_round;
+    const tweak=(h%13-6)/100;
+    const mass=Math.max(620,Math.round((b.mass+body.mass+(h%91-45))*1.0));
+    const hp=Math.round(b.hp*(1+tweak));
+    const torque=Math.round(b.torque*(1+tweak*.9));
+    const lowTraction=r.drive==='FR' || r.drive==='RR';
+    const drift=clamp(b.drift+(lowTraction?.65:-.80)+(r.focus.toLowerCase().includes('drift')?.90:0),4,10);
+    const grip=clamp(b.grip+(r.drive==='AWD'?.25:0)+(r.drive==='4WD'?.10:0)+(r.bodyStyle==='midship'?.23:0),4,10);
+    const price=index===0?0:Math.round((b.price*(.84+(h%35)/100))/500)*500;
+    const funDrive = r.drive==='4WD'?'AWD':r.drive;
+    const spoiler= /gt3|gt4|type r|sti|evolution|cosworth|acr|zl1|sagaris|exige/i.test(r.name)?'gt_large':
+      /supra|skyline|rs6|rx-7|911|mustang/i.test(r.name)?'gt_small':'lip';
+    const popups = /180sx|s13|rx-7|mr2|nsx|mx-5|corvette c4|ae86|esprit/i.test(r.name);
+    return Object.freeze({ ...r, index,
+      country:BRAND_ORIGINS[r.brand]||COUNTRIES[r.culture], culturalRegion:COUNTRIES[r.culture], name:r.name,
+      massKg:mass, powerHp:hp, torqueNm:torque, accelerationGame:b.acc, topKmh:Math.round((b.top*3.6)*(1+tweak*.4)),
+      aeroDrag:clamp(Math.round((b.drag+(((h>>>6)%9)-4)*.003)*1000)/1000,.19,.48),
+      driftRating:+drift.toFixed(2), gripRating:+grip.toFixed(2),
+      potential:b.potential, price, currency:'CR', specificationStatus:'ESTIMATED_GAME_BALANCE',
+      performanceClass:r.class, body: r.bodyStyle, style:r.bodyStyle, len:body.len, wid:body.wid,
+      top: +(b.top*(1+tweak*.4)).toFixed(2), acc:+(b.acc*(1+tweak*.4)).toFixed(2),
+      turn:+(b.turn+body.turn).toFixed(2), grip, drift, drag:b.drag,
+      spoiler, popups, color: [0xf6f6f6,0x2d88db,0xec3e43,0xffc132,0x17b8a7,0x292c42,0x9299b2][h%7],
+      category:r.focus, desc:r.focus+' · '+r.generation+'.',
+      drive:funDrive,
+      compat:{ turbo:!(/elise|seven|mini cooper classic|db5/i.test(r.name)),supercharger:true,engine:true,transmission:true,brakes:true,suspension:true,
+        aero:true, bodykit:!(['classic_hatch','suv','pickup'].includes(r.bodyStyle)),wheel:true,paint:true },
+      customization:CATEGORIES.slice(),
+      notYetSimulated:UNAVAILABLE_MECHANIC.slice(),
+      specNote:SPEC_NOTE
+    });
+  });
+  const byId = Object.freeze(Object.fromEntries(vehicles.map(v=>[v.id,v])));
+  const REGIONS=Object.freeze([
+    {id:'rs',name:'Rio Grande do Sul',theme:'Encontros noturnos, clássicos nacionais e turbo',fog:0x1c2134},
+    {id:'sc',name:'Santa Catarina',theme:'Estradas costeiras e tuning',fog:0x172a35},
+    {id:'sp',name:'São Paulo',theme:'Cidade grande e cultura das oficinas',fog:0x272039},
+    {id:'rj',name:'Rio de Janeiro',theme:'Litoral, avenidas e túneis fictícios',fog:0x18323c},
+    {id:'mg',name:'Minas Gerais',theme:'Serras e dirigibilidade em curvas',fog:0x2c2734},
+    {id:'pr',name:'Paraná',theme:'Rodovias e preparação',fog:0x252838},
+    {id:'co',name:'Centro-Oeste',theme:'Rodovias extensas e projetos de torque',fog:0x332b2a},
+    {id:'ne',name:'Nordeste',theme:'Cidades costeiras e encontros regionais',fog:0x273343},
+    {id:'no',name:'Norte',theme:'Clima tropical e estradas fictícias',fog:0x1b3435}
+  ]);
+  const API=Object.freeze({vehicles:Object.freeze(vehicles),byId, cultures:Object.freeze(Object.keys(COUNTRIES)),classes:Object.freeze(['D','C','B','A','S','X']), specificationNote:SPEC_NOTE, categories:Object.freeze(CATEGORIES),regions:REGIONS,version:'5.0'});
+  global.NEON_CATALOG=API;
+  if(typeof module!=='undefined'&&module.exports)module.exports=API;
+})(typeof window!=='undefined'?window:globalThis);
