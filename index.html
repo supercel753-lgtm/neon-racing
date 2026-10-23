@@ -2,240 +2,54 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#070912">
-<meta name="description" content="NEON PURSUIT — corrida arcade 3D noturna em mundo aberto.">
-<title>NEON PURSUIT — Street Racing</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="NEON PURSUIT — interface visual de corrida urbana futurista.">
+<title>NEON PURSUIT</title>
 <style>
-:root{--bg:#070912;--panel:rgba(10,13,27,.86);--line:rgba(91,226,255,.25);--cyan:#2de2c8;--blue:#54a7ff;--pink:#ff3d81;--gold:#ffc857;--text:#f1f5ff;--muted:#9ba8c6}
+:root{color-scheme:dark;--bg:#070a12;--panel:#101827;--cyan:#43f5ff;--pink:#ff3e9d;--muted:#91a3ba}
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Rajdhani,Arial,sans-serif}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:2;background:linear-gradient(180deg,rgba(4,6,17,.35),transparent 24%,transparent 70%,rgba(4,6,17,.45));}
-body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:3;opacity:.12;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(180,220,255,.12) 4px);mix-blend-mode:screen}
-button{font:inherit;color:inherit;cursor:pointer;border:1px solid rgba(94,218,255,.35);background:linear-gradient(135deg,rgba(32,51,83,.92),rgba(13,17,35,.96));padding:11px 16px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;transition:transform .16s,border-color .16s,filter .16s;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
-button:hover{border-color:var(--cyan);filter:brightness(1.2);transform:translateY(-1px)}
-button:active{transform:translateY(1px)}
-button:disabled{opacity:.4;cursor:not-allowed;transform:none}
-button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
-#c{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
-#sfx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
-.hide{display:none!important}
-.panel{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 28px));max-height:90vh;overflow:auto;padding:clamp(20px,4vw,34px);background:linear-gradient(145deg,rgba(12,17,38,.94),rgba(5,8,20,.91));border:1px solid var(--line);box-shadow:0 0 0 1px rgba(255,61,129,.07),0 24px 90px #000b,0 0 55px rgba(45,226,200,.08);backdrop-filter:blur(16px)}
-.panel:before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),var(--pink),transparent)}
-.kicker{font:600 11px Orbitron,sans-serif;letter-spacing:.28em;color:var(--cyan);text-transform:uppercase}
-.logo{font:800 clamp(30px,6vw,54px)/.98 Orbitron,sans-serif;letter-spacing:-.06em;margin:13px 0 8px;text-shadow:0 0 22px #2de2c855}
-.logo span{color:var(--pink)}
-.subtitle{font-size:18px;letter-spacing:.16em;text-transform:uppercase;color:#c4cee8;margin:0 0 24px}
-.panel p{color:var(--muted);font-size:17px;line-height:1.3}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
-.actions .primary{background:linear-gradient(110deg,#087f87,#155a91);border-color:var(--cyan);box-shadow:0 0 25px #2de2c81c}
-.actions .wide{grid-column:1/-1}
-.smallnote{font-size:13px!important;letter-spacing:.04em;margin-top:20px}
-#hud{position:fixed;z-index:8;inset:0;pointer-events:none;padding:clamp(12px,2.2vw,28px)}
-.hud-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.hud-card{background:linear-gradient(135deg,rgba(7,12,28,.82),rgba(7,9,20,.45));border:1px solid rgba(111,169,255,.22);padding:10px 14px;min-width:130px;backdrop-filter:blur(8px);box-shadow:0 6px 25px #0003}
-.label{font:600 10px Orbitron,sans-serif;letter-spacing:.17em;color:var(--muted);text-transform:uppercase}
-#cash{font:700 20px Orbitron,sans-serif;color:var(--gold);margin-top:4px}
-#carName{font:700 17px Orbitron,sans-serif;margin-top:4px}
-.hud-right{display:flex;gap:8px;align-items:flex-start}
-#pauseBtn{pointer-events:auto;padding:10px 13px;font:700 12px Orbitron,sans-serif}
-.speed-wrap{position:absolute;bottom:28px;right:28px;text-align:right;text-shadow:0 2px 15px #000}
-.speed-line{display:flex;align-items:baseline;gap:8px;justify-content:flex-end}
-#spd{font:800 clamp(48px,8vw,82px)/.9 Orbitron,sans-serif;letter-spacing:-.07em}
-.unit{font:700 13px Orbitron,sans-serif;color:var(--cyan);letter-spacing:.14em}
-.gearbox{margin-top:8px;font:600 14px Orbitron,sans-serif;color:var(--muted)}
-.gearbox strong{font-size:23px;color:white;margin-left:8px}
-.nos-label{margin-top:15px;font:600 10px Orbitron,sans-serif;letter-spacing:.2em;color:var(--blue)}
-.meter{width:min(230px,38vw);height:5px;background:#dce6ff24;margin-top:7px;overflow:hidden}
-.meter i{display:block;width:100%;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));box-shadow:0 0 14px var(--cyan);transition:width .1s}
-.hud-left-bottom{position:absolute;left:28px;bottom:28px;max-width:min(330px,55vw)}
-.objective{padding:12px 15px;border-left:2px solid var(--cyan);background:linear-gradient(90deg,rgba(5,14,29,.85),transparent);text-shadow:0 2px 10px #000}
-#mission{font:700 13px Orbitron,sans-serif;letter-spacing:.07em}
-#pos,#timer{font-size:16px;color:#c0cee9;margin-top:4px}
-#timer{font:700 22px Orbitron,sans-serif;color:white}
-#drift{font:700 17px Orbitron,sans-serif;color:var(--gold);margin-top:8px;text-shadow:0 0 15px #ff9d2d80}
-#vig{position:absolute;inset:0;border:0 solid transparent;transition:border-width .15s;box-shadow:inset 0 0 0 rgba(255,0,0,0)}
-#vig.pursuit{border:7px solid rgba(255,30,60,.28);box-shadow:inset 0 0 70px rgba(255,0,50,.25);animation:alarm .7s infinite alternate}
-@keyframes alarm{to{border-color:rgba(40,110,255,.3);box-shadow:inset 0 0 70px rgba(20,80,255,.25)}}
-#heat{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(250px,45vw);height:4px;background:#fff2}
-#bustB{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--pink));box-shadow:0 0 15px var(--pink)}
-#mm{position:absolute;right:28px;bottom:200px;width:170px;height:170px;border-radius:50%;border:1px solid #6bd8ef77;box-shadow:0 0 24px #0008,0 0 18px #2de2c81a}
-#count{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font:800 clamp(48px,12vw,110px) Orbitron,sans-serif;color:white;text-shadow:0 0 28px var(--cyan);letter-spacing:.04em}
-#msg{position:absolute;top:18%;left:50%;transform:translateX(-50%);font:700 16px Orbitron,sans-serif;color:var(--cyan);text-align:center;text-shadow:0 0 18px #2de2c8;white-space:nowrap}
-#touch{display:none!important}
-#story .ch{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;margin-top:8px;text-transform:none;letter-spacing:0}
-.ch small{color:var(--muted);text-align:right}
-#garage .garage-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
-#garage .car-name{font:700 clamp(22px,4vw,32px) Orbitron,sans-serif;margin:12px 0}
-.stats{display:grid;gap:9px;margin:20px 0}
-.stat{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:12px;color:var(--muted);font-size:15px}
-.bar{height:5px;background:#fff2}.bar i{height:100%;display:block;background:linear-gradient(90deg,var(--blue),var(--cyan))}
-.swatches{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0 22px}
-.sw{width:29px;height:29px;padding:0;clip-path:none;border-radius:50%;border:2px solid #ffffff66}
-#result #rTitle{font:800 clamp(27px,5vw,42px) Orbitron,sans-serif;margin:12px 0}
-#rText{font-size:18px;line-height:1.5;color:#c5d0e8}
-#rBtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
-.footerline{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:22px 0 12px}
-@media(max-width:650px){.panel{padding:22px 18px}.actions{grid-template-columns:1fr}.actions .wide{grid-column:auto}.hud-card{padding:8px 10px;min-width:0}.hud-right{gap:5px}.hud-right .hud-card:nth-child(2){display:none}.speed-wrap{right:16px;bottom:100px}.hud-left-bottom{left:14px;bottom:100px}.hud-left-bottom #mm{display:none}#mm{right:14px;bottom:180px;width:112px;height:112px}#heat{top:32%}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
-
-/* Arcade instrument cluster: original design with early-2000s street-racing energy */
-.speed-wrap{
-  position:absolute;right:26px;bottom:24px;width:min(365px,42vw);padding:15px 18px 13px;
-  text-align:left;text-shadow:0 2px 12px #000;background:
-    linear-gradient(115deg,rgba(4,9,20,.94),rgba(9,18,34,.78) 58%,rgba(24,10,26,.88));
-  border:1px solid rgba(110,220,255,.45);
-  clip-path:polygon(0 0,91% 0,100% 18%,100% 100%,8% 100%,0 82%);
-  box-shadow:0 0 0 1px #0009,0 0 24px #000a,0 0 24px rgba(45,226,200,.12);
-  overflow:hidden;
-}
-.speed-wrap:before{content:"";position:absolute;inset:0;pointer-events:none;background:
-  linear-gradient(90deg,transparent 0 67%,rgba(255,61,129,.10)),
-  repeating-linear-gradient(0deg,transparent 0 5px,rgba(200,235,255,.025) 6px);
-}
-.speed-wrap:after{content:"";position:absolute;left:0;top:0;width:62%;height:2px;background:linear-gradient(90deg,var(--cyan),#fff,transparent);box-shadow:0 0 12px var(--cyan)}
-.speed-topline{position:relative;display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
-.speed-brand{font:700 9px Orbitron,sans-serif;letter-spacing:.24em;color:var(--cyan)}
-.speed-live{font:600 9px Orbitron,sans-serif;letter-spacing:.16em;color:#ff6a94}
-.speed-main{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
-.speed-readout{display:flex;align-items:baseline;gap:7px;min-width:0}
-#spd{font:800 clamp(50px,6.5vw,76px)/.88 Orbitron,sans-serif;letter-spacing:-.09em;color:#f7fbff;
-  font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(84,167,255,.38),0 2px 4px #000}
-.unit{font:700 10px Orbitron,sans-serif;color:var(--cyan);letter-spacing:.12em;white-space:nowrap}
-.speed-side{display:flex;align-items:flex-end;gap:7px;padding-bottom:2px}
-.gearbox{margin:0;color:#a7b7d4;font:600 8px Orbitron,sans-serif;letter-spacing:.12em;display:flex;flex-direction:column;gap:3px}
-.gearbox strong{font-size:27px;line-height:1;color:#fff;margin:0;text-shadow:0 0 13px #ff3d81aa}
-.gear-caption{font:600 8px Orbitron,sans-serif;color:#ff6a94;letter-spacing:.16em}
-.rpm-label-row{position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:11px;font:600 8px Orbitron,sans-serif;letter-spacing:.16em;color:#7e92b5}
-.rpm-label-row span:last-child{color:#ff7799}
-.rpm-track{position:relative;display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px;margin-top:5px;height:11px}
-.rpm-track i{display:block;background:rgba(121,157,199,.20);transform:skewX(-15deg);border:1px solid rgba(137,174,215,.10)}
-.rpm-track i:nth-child(-n+13){background:linear-gradient(180deg,#34e4d0,#148baf)}
-.rpm-track i:nth-child(n+14):nth-child(-n+19){background:linear-gradient(180deg,#ffc857,#e97831)}
-.rpm-track i:nth-child(n+20){background:linear-gradient(180deg,#ff6c8e,#d51f59)}
-.rpm-track i.dim{opacity:.14;filter:saturate(.25)}
-.nos-row{position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:11px}
-.nos-label{margin:0;font:700 9px Orbitron,sans-serif;letter-spacing:.22em;color:#70baff}
-.nos-note{font:600 8px Orbitron,sans-serif;letter-spacing:.12em;color:#8d9fbd}
-.meter{width:100%;height:6px;background:rgba(200,220,255,.12);margin-top:6px;overflow:hidden;transform:skewX(-12deg);border:1px solid rgba(100,170,255,.16)}
-.meter i{display:block;width:100%;height:100%;background:linear-gradient(90deg,#236bff,#38e7ff,#f8ffff);box-shadow:0 0 14px #39dfff;transition:width .1s}
-.speed-footer{position:relative;display:flex;justify-content:space-between;gap:10px;margin-top:9px;font:600 8px Orbitron,sans-serif;letter-spacing:.12em;color:#61799c}
-.speed-footer span:last-child{color:#91a6c9}
-#mm{position:absolute;right:28px;bottom:205px;width:152px;height:152px;border-radius:50%;border:1px solid #6bd8ef77;box-shadow:0 0 24px #0008,0 0 18px #2de2c81a}
-@media(max-width:650px){
- .speed-wrap{right:12px;bottom:12px;width:min(310px,75vw);padding:12px 13px 10px}
- #spd{font-size:clamp(46px,12vw,64px)}
- .rpm-track{gap:2px;height:9px}
- #mm{right:12px;bottom:auto;top:92px;width:108px;height:108px}
- .speed-footer{font-size:7px}
-}
-
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#172542 0%,#080d18 48%,#05070c 100%);color:#f5f8ff;font-family:Arial,Helvetica,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px clamp(18px,5vw,72px);border-bottom:1px solid #25344a}
+.brand{font-weight:900;letter-spacing:.16em;font-size:clamp(20px,3vw,32px)}.brand span{color:var(--cyan)}
+.status{color:var(--muted);font-size:12px;letter-spacing:.15em;text-align:right}
+main{width:min(1180px,92vw);margin:36px auto 60px}
+.hero{position:relative;overflow:hidden;min-height:390px;border:1px solid #2b3d58;border-radius:18px;background:linear-gradient(120deg,rgba(5,12,24,.95),rgba(11,23,42,.83)),repeating-linear-gradient(0deg,transparent 0 39px,rgba(67,245,255,.08) 40px),repeating-linear-gradient(90deg,transparent 0 39px,rgba(67,245,255,.08) 40px);display:flex;align-items:center;padding:clamp(24px,6vw,70px)}
+.hero:before{content:"";position:absolute;width:55vw;height:55vw;max-width:600px;max-height:600px;right:-5%;top:5%;border:2px solid rgba(67,245,255,.18);border-radius:50%;box-shadow:0 0 0 35px rgba(67,245,255,.025),0 0 0 75px rgba(255,62,157,.025)}
+.hero:after{content:"";position:absolute;right:4%;bottom:14%;width:42%;height:3px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan));box-shadow:0 0 22px var(--cyan);transform:rotate(-13deg)}
+.content{position:relative;z-index:1;max-width:620px}
+.kicker{color:var(--cyan);font-size:12px;font-weight:bold;letter-spacing:.28em}
+h1{font-size:clamp(42px,8vw,88px);line-height:.94;margin:18px 0;letter-spacing:-.06em}
+h1 span{color:var(--cyan);text-shadow:0 0 24px #43f5ff55}
+p{color:#b4c3d7;line-height:1.7;max-width:540px}
+.notice{display:inline-block;margin-top:18px;padding:12px 15px;border-left:3px solid var(--pink);background:#ff3e9d12;color:#dce6f4;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+.card{padding:22px;border:1px solid #26364d;background:linear-gradient(145deg,#111b2b,#0a101c);border-radius:12px}
+.card small{color:var(--cyan);letter-spacing:.18em;font-weight:bold}
+.card h2{font-size:17px;margin:12px 0 8px}.card p{font-size:13px;margin:0;color:var(--muted)}
+footer{display:flex;justify-content:space-between;gap:16px;margin-top:28px;color:#64758d;font-size:11px;letter-spacing:.12em}
+@media(max-width:700px){header{align-items:flex-start}.status{max-width:130px}.hero{min-height:350px}.hero:before{right:-35%;top:25%}.grid{grid-template-columns:1fr}.hero:after{width:70%;right:-5%}footer{flex-direction:column}}
 </style>
 </head>
 <body>
-<canvas id="c" aria-label="Mundo 3D do jogo"></canvas>
-<canvas id="sfx" aria-hidden="true"></canvas>
-<div id="vig"></div>
-
-<section id="menu" class="panel">
-  <div class="kicker">Arcade street racing · build 02.6</div>
-  <h1 class="logo">NEON <span>PURSUIT</span></h1>
-  <div class="subtitle">A cidade não dorme.</div>
-  <p>Asfalto molhado de neon, trânsito vivo e corridas ilegais sob o céu da cidade. Liga o motor e conquista as ruas.</p>
-  <div class="actions">
-    <button id="bFree" class="primary wide">Entrar no mundo aberto</button>
-    <button id="bStory">Modo carreira</button>
-    <button id="bGarage">Garagem</button>
-    <button id="bQ">Qualidade: Média</button>
-    <button id="bFull">Tela cheia</button>
-    <button id="bReset">Apagar progresso</button>
-  </div>
-  <div class="footerline"></div>
-  <p class="smallnote">WASD / SETAS · ESPAÇO freio de mão · SHIFT nitro · C trocar carro no mundo aberto · ESC pausar</p>
-</section>
-
-<section id="story" class="panel hide">
-  <div class="kicker">Modo carreira</div><h2 class="logo">ESCALADA <span>URBANA</span></h2>
-  <p>Escolhe teu próximo desafio. Vencer desbloqueia novas corridas e carros.</p>
-  <div id="chList"></div>
-  <div class="actions"><button id="bStoryBack" class="wide">Voltar</button></div>
-</section>
-
-<section id="garage" class="panel hide">
-  <div class="kicker">Centro de preparação</div>
-  <div class="garage-head"><button id="gPrev" aria-label="Carro anterior">◀</button><div id="gCash" class="label">$ 3.000</div><button id="gNext" aria-label="Próximo carro">▶</button></div>
-  <div id="gName" class="car-name">Vira-Lata 1.0</div>
-  <div id="gStats" class="stats"></div>
-  <div class="label">Pintura</div><div id="gSw" class="swatches"></div>
-  <div class="actions"><button id="gAct" class="primary">Selecionar</button><button id="gBack">Voltar</button></div>
-</section>
-
-<section id="pause" class="panel hide">
-  <div class="kicker">Sessão suspensa</div><h2 class="logo">PAUSA<span>.</span></h2>
-  <p>Respira. A cidade continua à tua espera.</p>
-  <div class="actions"><button id="pResume" class="primary wide">Continuar corrida</button><button id="pRetry">Recomeçar desafio</button><button id="pGarage">Garagem</button><button id="pMenu" class="wide">Sair para o menu</button></div>
-</section>
-
-<section id="result" class="panel hide">
-  <div class="kicker">Relatório da corrida</div><h2 id="rTitle">RESULTADO</h2><p id="rText"></p><div id="rBtns"></div>
-</section>
-
-<section id="hud" class="hide" aria-live="polite">
-  <div class="hud-top">
-    <div class="hud-card"><div class="label">Créditos</div><div id="cash">$ 3.000</div></div>
-    <div class="hud-right">
-      <div class="hud-card"><div class="label">Veículo atual</div><div id="carName">Vira-Lata 1.0</div></div>
-      <button id="pauseBtn">Ⅱ PAUSA</button>
+<header>
+  <div class="brand">NEON <span>PURSUIT</span></div>
+  <div class="status">URBAN RACING PROJECT<br>HTML VISUAL PREVIEW</div>
+</header>
+<main>
+  <section class="hero">
+    <div class="content">
+      <div class="kicker">NIGHT DRIVE // BUILD 001</div>
+      <h1>OWN THE<br><span>NIGHT.</span></h1>
+      <p>Ruas iluminadas, motores preparados e uma cidade que nunca desacelera. NEON PURSUIT é um projeto de corrida urbana com identidade visual inspirada nos jogos de corrida clássicos.</p>
+      <div class="notice">Prévia visual estática — este arquivo contém somente HTML e CSS, sem JavaScript.</div>
     </div>
-  </div>
-  <div id="heat" class="hide"><div id="bustB"></div></div>
-  <div class="hud-left-bottom"><div class="objective"><div id="mission">Mundo aberto</div><div id="pos"></div><div id="timer"></div><div id="drift"></div></div></div>
-  <div class="speed-wrap" aria-label="Painel de instrumentos">
-    <div class="speed-topline"><span class="speed-brand">NEON PURSUIT // PERFORMANCE</span><span class="speed-live">● LIVE</span></div>
-    <div class="speed-main">
-      <div class="speed-readout"><span id="spd">0</span><span class="unit">KM/H</span></div>
-      <div class="speed-side"><div class="gearbox"><span>MARCHA</span><strong id="gear">1</strong><span class="gear-caption">GEAR</span></div></div>
-    </div>
-    <div class="rpm-label-row"><span>RPM / POWER BAND</span><span id="rpmText">IDLE</span></div>
-    <div class="rpm-track" id="rpmTrack" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="nos-row"><span class="nos-label">NITRO SYSTEM</span><span class="nos-note">BOOST</span></div>
-    <div class="meter"><i id="nosB"></i></div>
-    <div class="speed-footer"><span>STREET TUNED</span><span>FULL THROTTLE // NO LIMITS</span></div>
-  </div>
-  <canvas id="mm" width="170" height="170" aria-label="Minimapa"></canvas>
-  <div id="count"></div><div id="msg"></div>
-</section>
-
-<div id="touch" class="hide" aria-hidden="true"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-
-<script>
-(() => {
-  const speed = document.getElementById('spd');
-  const track = document.getElementById('rpmTrack');
-  const label = document.getElementById('rpmText');
-  if (!speed || !track || !label) return;
-  const bars = [...track.querySelectorAll('i')];
-  let last = -1;
-  const update = () => {
-    const value = Math.max(0, Number.parseInt(speed.textContent, 10) || 0);
-    const pct = Math.max(0, Math.min(1, value / 320));
-    const active = Math.round(pct * bars.length);
-    if (active !== last) {
-      bars.forEach((bar, index) => bar.classList.toggle('dim', index >= active));
-      label.textContent = value < 8 ? 'IDLE' : value < 90 ? 'PULL' : value < 210 ? 'HIGH RPM' : 'REDLINE';
-      last = active;
-    }
-  };
-  new MutationObserver(update).observe(speed, {childList:true,characterData:true,subtree:true});
-  update();
-})();
-</script>
-
-<script src="./game.js"></script>
+  </section>
+  <section class="grid" aria-label="Características do projeto">
+    <article class="card"><small>01 / CITY</small><h2>Ruas noturnas</h2><p>Atmosfera urbana com painéis escuros e acentos neon.</p></article>
+    <article class="card"><small>02 / GARAGE</small><h2>Máquinas únicas</h2><p>Uma garagem pensada para carros, personalização e estilo.</p></article>
+    <article class="card"><small>03 / PURSUIT</small><h2>Corrida intensa</h2><p>Uma identidade visual feita para velocidade e competição.</p></article>
+  </section>
+  <footer><span>NEON PURSUIT</span><span>ARQUIVO ESTÁTICO • SEM SCRIPTS • SEM DEPENDÊNCIAS EXTERNAS</span></footer>
+</main>
 </body>
 </html>
