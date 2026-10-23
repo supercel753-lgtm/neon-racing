@@ -1,10 +1,30 @@
 'use strict';
 (function () {
   /* =====================================================================
-     NEON PURSUIT v2 — corrida 3D em mundo aberto (Three.js r128)
+     NEON PURSUIT v3 — corrida 3D em mundo aberto (Three.js r128)
      Drift arcade, partículas, skid marks, céu noturno, áudio procedural.
      ===================================================================== */
-  const $ = id => document.getElementById(id);
+  const dom = new Map();
+  const $ = id => { if (!dom.has(id)) dom.set(id, document.getElementById(id)); return dom.get(id); };
+  const damp = (rate, dt) => 1 - Math.exp(-rate * dt);
+  const listeners = [];
+  function listen(target, type, fn, opts) {
+    target.addEventListener(type, fn, opts); listeners.push([target, type, fn, opts]);
+  }
+  const REQUIRED_IDS = ['c','mm','sfx','bQ','msg','count','spd','gear','nosB','cash','carName','drift',
+    'mission','pos','timer','heat','vig','bustB','menu','story','garage','pause','result','hud',
+    'pGarage','pRetry','rTitle','rText','rBtns','chList','gName','gStats','gSw','gAct','gCash',
+    'gPrev','gNext','gBack','bStory','bStoryBack','bFree','bGarage','bFull','bReset','pResume','pMenu','pauseBtn'];
+  const missing = REQUIRED_IDS.filter(id => !$(id));
+  if (typeof THREE === 'undefined' || missing.length) {
+    const message = typeof THREE === 'undefined' ? 'Carregue Three.js r128 antes de game.js.' :
+      'NEON PURSUIT: faltam elementos no HTML: ' + missing.join(', ');
+    console.error(message);
+    const error = document.createElement('p'); error.textContent = message; error.setAttribute('role', 'alert');
+    document.body.appendChild(error); return;
+  }
+  let stopped = false, rafId = 0, musicTimer = 0, contextLost = false;
+  const activeSources = new Set();
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   const rnd = () => Math.random();
@@ -25,8 +45,8 @@
   /* ---------------- constantes e save ---------------- */
   const P = 120, RW = 24, HALF = 12;
   let save = { cash: 3000, owned: [0], cur: 0, ch: 0, colors: {} };
-  try { Object.assign(save, JSON.parse(localStorage.getItem('np_save') || '{}')); } catch (e) {}
-  const persist = () => { try { localStorage.setItem('np_save', JSON.stringify(save)); } catch (e) {} };
+  try { Object.assign(save, JSON.parse(localStorage.getItem('np_save') || '{}')); } catch (e) { console.warn('Progresso indisponível; usando padrões.', e); }
+  const persist = () => { try { localStorage.setItem('np_save', JSON.stringify(save)); } catch (e) { console.warn('Armazenamento local indisponível.', e); } };
 
   const CARS = [
     { name: 'Vira-Lata 1.0', price: 0,     top: 44, acc: 14, turn: 2.3,  grip: 6.5, len: 3.9, wid: 1.8,  color: 0xe8b13a },
@@ -50,10 +70,23 @@
       intro: 'Os três melhores da cidade. Quem cruzar primeiro leva tudo.' }
   ];
 
+  // Validate persisted values before any mesh, menu or economy operation.
+  save.cash = Number.isFinite(save.cash) ? clamp(save.cash, 0, 1e12) : 3000;
+  save.owned = Array.isArray(save.owned) ? [...new Set(save.owned.filter(i => Number.isInteger(i) && i >= 0 && i < CARS.length))] : [0];
+  if (!save.owned.includes(0)) save.owned.unshift(0);
+  if (!save.owned.includes(save.cur)) save.cur = 0;
+  save.ch = Number.isInteger(save.ch) ? clamp(save.ch, 0, CHAPTERS.length) : 0;
+  const colors = {};
+  for (let i = 0; i < CARS.length; i++) {
+    const v = save.colors && save.colors[i];
+    if (Number.isInteger(v) && v >= 0 && v <= 0xffffff) colors[i] = v;
+  }
+  save.colors = colors;
+
   /* ---------------- qualidade ---------------- */
   const isTouch = matchMedia('(pointer: coarse)').matches;
   let quality = isTouch ? 0 : 1;
-  try { const q = localStorage.getItem('np_q'); if (q !== null) quality = clamp(+q | 0, 0, 2); } catch (e) {}
+  try { const q = localStorage.getItem('np_q'); if (q !== null) quality = clamp(+q | 0, 0, 2); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
   const QN = ['Baixa', 'Média', 'Alta'];
   const QS = [
     { pr: 0.6, R: 2, fog: 250 },
@@ -63,37 +96,40 @@
 
   /* ---------------- renderer / cena ---------------- */
   const canvas = $('c');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  const FOG = 0x303069;
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }); }
+  catch (e) { console.error('WebGL indisponível.', e); $('msg').textContent = 'Não foi possível iniciar WebGL. Verifique a aceleração gráfica do navegador.'; return; }
+  const FOG = 0x151d35;
   renderer.setClearColor(FOG);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(FOG, 90, 350);
   const camera = new THREE.PerspectiveCamera(65, 1, 0.5, 420);
-  scene.add(new THREE.HemisphereLight(0x9aa8ff, 0x3a3048, 1.05));
-  const sun = new THREE.DirectionalLight(0xffc29a, 0.7);
+  scene.add(new THREE.HemisphereLight(0x9aa8ff, 0x211d30, 0.85));
+  const sun = new THREE.DirectionalLight(0xb9d0ff, 0.85);
   sun.position.set(-0.6, 1, -0.4);
   scene.add(sun);
 
   // shared uniforms for point sprites
   const U = { uScale: { value: 800 }, uFar: { value: 350 } };
 
-  let lastBlock = null;
+  let lastBlock = null, slowWindows = 0, renderNeeded = true;
   function resize() {
+    renderNeeded = true;
     renderer.setPixelRatio(QS[quality].pr);
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
   }
-  function applyQuality() {
+  function applyQuality(adaptive = false) {
     const q = QS[quality];
     scene.fog.near = q.fog * 0.3; scene.fog.far = q.fog; U.uFar.value = q.fog;
     camera.far = q.fog + 70; camera.updateProjectionMatrix();
     resize();
     lastBlock = null;
     $('bQ').textContent = 'Qualidade: ' + QN[quality];
-    try { localStorage.setItem('np_q', String(quality)); } catch (e) {}
+    try { if (!adaptive) localStorage.setItem('np_q', String(quality)); } catch (e) { console.warn('Armazenamento local indisponível.', e); }
   }
-  window.addEventListener('resize', resize);
+  listen(window, 'resize', resize);
 
   /* ---------------- céu noturno (cúpula com estrelas e lua) ---------------- */
   const sky = new THREE.Mesh(
@@ -107,7 +143,7 @@
         float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main(){
           vec3 d = normalize(vD); float y = d.y;
-          vec3 hor = vec3(0.188, 0.188, 0.416), mid = vec3(0.10, 0.12, 0.30), top = vec3(0.02, 0.03, 0.12);
+          vec3 hor = vec3(0.082, 0.114, 0.208), mid = vec3(0.10, 0.12, 0.30), top = vec3(0.02, 0.03, 0.12);
           vec3 c = mix(hor, mid, smoothstep(0.0, 0.22, y));
           c = mix(c, top, smoothstep(0.2, 0.85, y));
           vec2 sp = floor(vec2(atan(d.x, d.z) * 70.0, asin(clamp(d.y, -1.0, 1.0)) * 140.0));
@@ -183,7 +219,7 @@
   groundTex.repeat.set(TILES, TILES);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(TILES * P, TILES * P).rotateX(-Math.PI / 2),
-    new THREE.MeshLambertMaterial({ map: groundTex })
+    new THREE.MeshPhongMaterial({ map: groundTex, shininess: 32, specular: 0x242d40 })
   );
   scene.add(ground);
 
@@ -197,7 +233,7 @@
     }`;
   const PFS = `varying vec3 vC; varying float vA;
     void main(){
-      float r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); a *= a;
+      float r = length(gl_PointCoord - 0.5) * 2.0; float a = 1.0 - smoothstep(0.0, 1.0, r); a *= a;
       if (vA * a < 0.003) discard;
       gl_FragColor = vec4(vC, vA * a);
     }`;
@@ -232,8 +268,10 @@
       life[i] = lf; ml[i] = lf; s0[i] = size; gr[i] = grow; a0[i] = a; dr[i] = drag; gv[i] = grav;
     };
     s.update = function (dt) {
+      let dirty = false;
       for (let i = 0; i < max; i++) {
         if (life[i] <= 0) continue;
+        dirty = true;
         life[i] -= dt;
         if (life[i] <= 0) { s.alp[i] = 0; s.siz[i] = 0; continue; }
         const i3 = i * 3, t = 1 - life[i] / ml[i], k = Math.max(0, 1 - dr[i] * dt);
@@ -243,12 +281,12 @@
         s.siz[i] = Math.max(0.02, s0[i] + gr[i] * t * ml[i]);
         s.alp[i] = a0[i] * (1 - t) * (1 - t);
       }
-      s.touch();
+      if (dirty) s.touch();
     };
     return s;
   }
-  const smoke = makeEmitter(360, false);   // fumaça de pneu
-  const fxp = makeEmitter(420, true);      // faíscas, chamas, explosões
+  const smoke = makeEmitter(360, false);
+  const fxp = makeEmitter(420, true);
 
   /* brilhos (postes + faróis/lanternas) */
   const MAXB = 420, MAXL = 460, G_DYN = 220, G_MAX = MAXL + G_DYN;
@@ -356,6 +394,11 @@
   const headM = new THREE.InstancedMesh(boxG, new THREE.MeshBasicMaterial({ color: 0xffd9a0 }), MAXL);
   poleM.frustumCulled = headM.frustumCulled = false; poleM.count = headM.count = 0;
   scene.add(poleM); scene.add(headM);
+  const lightPools = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffbf76, transparent: true, opacity: 0.14,
+      depthWrite: false, blending: THREE.AdditiveBlending }), MAXL);
+  lightPools.frustumCulled = false; lightPools.count = 0; scene.add(lightPools);
   const dummy = new THREE.Object3D();
 
   function rebuildWorld(bi, bj) {
@@ -378,6 +421,8 @@
         const x = i * P + sx * o, z = j * P + sz * o;
         dummy.position.set(x, 0, z); dummy.scale.set(0.3, 8, 0.3); dummy.updateMatrix(); poleM.setMatrixAt(m, dummy.matrix);
         dummy.position.set(x - sx * 0.6, 8.1, z - sz * 0.6); dummy.scale.set(1.5, 0.25, 0.6); dummy.updateMatrix(); headM.setMatrixAt(m, dummy.matrix);
+        dummy.position.set(x - sx * 2, 0.025, z - sz * 2); dummy.scale.set(18, 1, 18);
+        dummy.updateMatrix(); lightPools.setMatrixAt(m, dummy.matrix);
         const g3 = m * 3;
         glow.pos[g3] = x - sx * 0.6; glow.pos[g3 + 1] = 8.0; glow.pos[g3 + 2] = z - sz * 0.6;
         glow.col[g3] = 1; glow.col[g3 + 1] = 0.78; glow.col[g3 + 2] = 0.45; glow.siz[m] = 11; glow.alp[m] = 0.5;
@@ -386,6 +431,7 @@
     }
     for (let k = m; k < MAXL; k++) glow.alp[k] = 0;
     poleM.count = headM.count = m;
+    lightPools.count = quality > 0 ? m : 0; lightPools.instanceMatrix.needsUpdate = true;
     poleM.instanceMatrix.needsUpdate = headM.instanceMatrix.needsUpdate = true;
   }
 
@@ -407,26 +453,31 @@
     const g = new THREE.Group(), L = def.len, W = def.wid;
     g.rotation.order = 'YXZ';
     const bodyMat = new THREE.MeshPhongMaterial({ color, shininess: 90, specular: 0x555566 });
-    const extra = [];
+    const tailMat = matTail.clone();
+    const extra = [tailMat];
     const add = (geo, mat, x, y, z, sx, sy, sz) => {
       const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m;
     };
     add(boxG, bodyMat, 0, 0.55, 0, W, 0.5, L);
-    add(boxG, bodyMat, 0, 0.82, L * 0.3, W * 0.96, 0.14, L * 0.36);        // capô
+    add(boxG, bodyMat, 0, 0.82, L * 0.3, W * 0.96, 0.14, L * 0.36);
     add(boxG, matGlass, 0, 1.08, -L * 0.06, W * 0.84, 0.5, L * 0.5);
     add(boxG, bodyMat, 0, 1.35, -L * 0.06, W * 0.7, 0.06, L * 0.42);
-    add(boxG, matDark, 0, 0.34, L / 2 - 0.02, W * 0.98, 0.2, 0.14);       // parachoque
+    add(boxG, matDark, 0, 0.34, L / 2 - 0.02, W * 0.98, 0.2, 0.14);
     add(boxG, matDark, 0, 0.34, -L / 2 + 0.02, W * 0.98, 0.2, 0.14);
-    add(boxG, matDark, W / 2 + 0.01, 0.32, 0, 0.05, 0.14, L * 0.5);       // saias
+    add(boxG, matDark, W / 2 + 0.01, 0.32, 0, 0.05, 0.14, L * 0.5);
     add(boxG, matDark, -W / 2 - 0.01, 0.32, 0, 0.05, 0.14, L * 0.5);
-    add(boxG, bodyMat, W / 2 + 0.12, 0.95, L * 0.14, 0.14, 0.1, 0.22);    // retrovisores
+    add(boxG, bodyMat, W / 2 + 0.12, 0.95, L * 0.14, 0.14, 0.1, 0.22);
     add(boxG, bodyMat, -W / 2 - 0.12, 0.95, L * 0.14, 0.14, 0.1, 0.22);
-    add(boxG, matTail, 0, 0.7, -L / 2 - 0.01, W * 0.86, 0.14, 0.06);
+    add(boxG, tailMat, 0, 0.7, -L / 2 - 0.01, W * 0.86, 0.14, 0.06);
     add(boxG, matHead, 0, 0.66, L / 2 + 0.01, W * 0.86, 0.14, 0.06);
     if (def.spoiler) {
       add(boxG, bodyMat, 0, 1.25, -L / 2 + 0.2, W * 0.9, 0.06, 0.5);
       add(boxG, matDark, W * 0.32, 1.0, -L / 2 + 0.2, 0.06, 0.5, 0.3);
       add(boxG, matDark, -W * 0.32, 1.0, -L / 2 + 0.2, 0.06, 0.5, 0.3);
+    }
+    for (const side of [-1, 1]) {
+      add(boxG, matRim, side * W * 0.28, 0.35, -L / 2 - 0.04, 0.18, 0.16, 0.25);
+      add(boxG, matDark, side * W * 0.28, 0.35, -L / 2 - 0.18, 0.12, 0.1, 0.02);
     }
     const wheels = [], pivots = [];
     for (const sx of [1, -1]) for (const sz of [1, -1]) {
@@ -440,17 +491,17 @@
     if (opts.cop) {
       bar = [add(boxG, matRed, 0.35, 1.45, -L * 0.06, 0.5, 0.14, 0.3), add(boxG, matBlue, -0.35, 1.45, -L * 0.06, 0.5, 0.14, 0.3)];
     }
-    if (opts.glow) {   // neon sob o carro
+    if (opts.glow) {
       const um = new THREE.MeshBasicMaterial({ color: opts.cop ? 0x4466ff : color, map: glowTex, transparent: true, opacity: 0.85,
         blending: THREE.AdditiveBlending, depthWrite: false });
       const u = new THREE.Mesh(flatG, um); u.position.y = 0.04; u.scale.set(W * 1.9, 1, L * 1.35); g.add(u); extra.push(um);
     }
-    if (opts.beam) {   // cone de luz do farol
+    if (opts.beam) {
       const bmt = new THREE.MeshBasicMaterial({ color: 0xfff0c8, map: beamT, transparent: true, opacity: 0.32,
         blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
       const b = new THREE.Mesh(flatG, bmt); b.position.set(0, 0.06, L / 2 + 11); b.scale.set(9, 1, 22); g.add(b); extra.push(bmt);
     }
-    g.userData = { bodyMat, extra, wheels, pivots, bar, roll: 0, pitch: 0 };
+    g.userData = { bodyMat, tailMat, extra, wheels, pivots, bar, roll: 0, pitch: 0 };
     return g;
   }
   function killMesh(m) {
@@ -465,7 +516,7 @@
   /* ---------------- estado dos carros ---------------- */
   function newCar(def, isPlayer) {
     return { def, x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, speed: 0, vf: 0, vl: 0, sa: 0, ax: 0, boost: false, kick: 0,
-      drift: false, nitro: 1, contact: false, hitX: 0, hitZ: 0, isPlayer: !!isPlayer, mesh: null };
+      drift: false, nitro: 1, boostVisual: 0, gear: 1, rpm: 0.15, yaw: 0, throttle: 0, driftTime: 0, brakeHold: 0, nosLocked: false, contact: false, hitX: 0, hitZ: 0, isPlayer: !!isPlayer, mesh: null };
   }
   const player = newCar(CARS[0], true);
   function carColor(idx) { return save.colors[idx] != null ? save.colors[idx] : CARS[idx].color; }
@@ -476,70 +527,89 @@
     scene.add(player.mesh);
   }
   function placeCar(c, x, z, h) {
-    c.x = x; c.z = z; c.h = h; c.vx = c.vz = 0; c.steer = 0; c.speed = c.vf = c.vl = c.sa = 0; c.boost = false; c.kick = 0; c.drift = false;
+    c.x = x; c.z = z; c.h = h; c.vx = c.vz = 0; c.steer = 0; c.speed = c.vf = c.vl = c.sa = 0; c.boost = false; c.kick = 0; c.drift = false; c.yaw = c.throttle = c.driftTime = c.brakeHold = c.ax = c.boostVisual = 0; c.nosLocked = false; c.gear = 1; c.rpm = 0.15; c.contact = false;
+    if (c.isPlayer) { cameraSnap = true; skLast[0] = skLast[1] = null; }
   }
 
   /* ---------------- física arcade com drift ---------------- */
-  function carStep(c, inp, dt) {
-    const d = c.def, top = d.top * (c.boost ? 1.3 : 1);
-    let fx = Math.sin(c.h), fz = Math.cos(c.h);
-    let vf = c.vx * fx + c.vz * fz;
-    const vl0 = c.vx * fz - c.vz * fx;
-    const sp = Math.abs(vf);
-    const sa0 = vf > 2 ? clamp(Math.atan2(vl0, vf), -1.4, 1.4) : 0;
-    // gatilhos de drift (só o jogador): freio de mão ou curva forte em alta velocidade
-    if (c.isPlayer) {
-      const hbOn = inp.hb && sp > 9;
-      const power = Math.abs(inp.steer) > 0.55 && inp.thr > 0 && vf > d.top * 0.5;
-      if (hbOn || power) c.drift = true;
-      else if (c.drift && (Math.abs(sa0) < 0.1 || sp < 8)) c.drift = false;
-      if (sp < 6) c.drift = false;
-    } else c.drift = false;
-    c.steer += (inp.steer - c.steer) * Math.min(1, dt * (c.drift ? 14 : 9));
-    const dirF = clamp(vf / 5, -1, 1);
-    let yaw;
-    if (c.drift) yaw = -c.steer * d.turn * 1.7 * dirF / (1 + sp / 60) + sa0 * (inp.hb ? 2.6 : 3.6);
-    else {
-      yaw = -c.steer * d.turn * dirF / (1 + sp / 38);
-      if (inp.hb) yaw *= 1.45;
-    }
-    c.h += yaw * dt;
-    fx = Math.sin(c.h); fz = Math.cos(c.h);
-    const lx = fz, lz = -fx;
-    vf = c.vx * fx + c.vz * fz;
-    let a = 0;
-    if (inp.thr > 0) {
-      const r = clamp(vf / top, 0, 1.2);
-      a = inp.thr * d.acc * (1 - r * r * 0.95) * (vf < 0 ? 2 : 1) * (c.drift ? 1.15 : 1);
-    } else if (inp.thr < 0) {
-      a = vf > 1 ? inp.thr * 30 : inp.thr * 9 * (1 - clamp(-vf / 14, 0, 1));
-    }
-    if (c.boost && vf > 0) a += 20;
-    if (c.kick > 0) { if (vf > 0) a += 26; c.kick -= dt; }
-    if (inp.hb && Math.abs(vf) > 1) a -= Math.sign(vf) * (c.drift ? 2 : 8);
-    a -= vf * 0.04 + (Math.abs(vf) > 0.5 ? Math.sign(vf) * 0.6 : 0);
-    c.ax = a;
-    c.vx += fx * a * dt; c.vz += fz * a * dt;
-    const vl = c.vx * lx + c.vz * lz;
-    const gm = c.drift ? (inp.hb ? 0.2 : 0.3) : (inp.hb ? 0.22 : 1);
-    const rem = vl * (1 - Math.exp(-d.grip * gm * dt));
-    c.vx -= lx * rem; c.vz -= lz * rem;
-    if (c.drift && Math.hypot(c.vx, c.vz) < top * 1.15) {   // o drift preserva a velocidade
-      const g = Math.abs(rem) * 0.5;
-      c.vx += fx * g; c.vz += fz * g;
-    }
-    c.x += c.vx * dt; c.z += c.vz * dt;
+  function telemetry(c) {
+    const fx = Math.sin(c.h), fz = Math.cos(c.h);
     c.speed = Math.hypot(c.vx, c.vz);
     c.vf = c.vx * fx + c.vz * fz;
-    c.vl = vl;
-    c.sa = c.vf > 2 ? clamp(Math.atan2(vl, c.vf), -1.4, 1.4) : 0;
+    c.vl = c.vx * fz - c.vz * fx;
+    c.sa = c.vf > 2 ? clamp(Math.atan2(c.vl, c.vf), -1.4, 1.4) : 0;
+  }
+  function drivetrain(c, thr, dt) {
+    const gs = c.def.top / 6;
+    if (c.vf < -0.5) c.gear = -1;
+    else {
+      if (c.gear < 1) c.gear = 1;
+      // Hysteresis keeps the HUD and engine from oscillating at shift points.
+      if (c.gear < 6 && c.speed > c.gear * gs * 1.04) c.gear++;
+      else if (c.gear > 1 && c.speed < (c.gear - 1) * gs * 0.90) c.gear--;
+    }
+    const rpm = c.gear < 0 ? 0.2 + c.speed / 18 :
+      0.2 + 0.8 * clamp((c.speed - (c.gear - 1) * gs) / gs, 0, 1);
+    c.rpm += (clamp(rpm + Math.max(0, thr) * 0.06, 0.15, 1) - c.rpm) * damp(12, dt);
+  }
+  function carStep(c, inp, dt) {
+    const d = c.def, top = d.top * (c.boost ? 1.3 : 1);
+    telemetry(c);
+    const sp = Math.abs(c.vf), sa0 = c.sa;
+    c.throttle += (inp.thr - c.throttle) * damp(inp.thr < 0 ? 24 : 7, dt);
+    if (c.isPlayer) {
+      const trigger = (inp.hb && sp > 9) ||
+        (Math.abs(inp.steer) > 0.85 && inp.thr > 0 && sp > d.top * 0.7 && Math.abs(sa0) > 0.17);
+      if (trigger) { c.drift = true; c.driftTime = 0; }
+      else c.driftTime += dt;
+      if (sp < 6 || (c.driftTime > 0.22 && Math.abs(sa0) < 0.12)) c.drift = false;
+    } else c.drift = false;
+    c.steer += (inp.steer - c.steer) * damp(c.drift ? 12 : 9, dt);
+    const dirF = clamp(c.vf / 5, -1, 1);
+    const targetYaw = -c.steer * d.turn * dirF / (1 + sp / (c.drift ? 48 : 34)) *
+      (c.drift ? 1.25 : 1) + (c.drift ? sa0 * (inp.hb ? 1.0 : 2.4) : 0);
+    c.yaw += (clamp(targetYaw, -2.8, 2.8) - c.yaw) * damp(c.drift ? 9 : 12, dt);
+    c.h = wrapA(c.h + c.yaw * dt);
+    const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = fz, lz = -fx;
+    let vf = c.vx * fx + c.vz * fz;
+    let a = 0;
+    if (inp.thr > 0) {
+      a = Math.max(0, c.throttle) * d.acc * (1 - 0.94 * Math.pow(clamp(vf / top, 0, 1.2), 2));
+      if (vf < -0.5) a = 30;
+      c.brakeHold = 0;
+    } else if (inp.thr < 0) {
+      if (vf > 0.4) { a = inp.thr * 30; c.brakeHold = 0; }
+      else { c.brakeHold += dt; a = c.brakeHold > 0.3 ? inp.thr * 9 * (1 - clamp(-vf / 14, 0, 1)) : 0; }
+    } else c.brakeHold = 0;
+    if (c.boost && vf > 0) a += 20;
+    if (c.kick > 0) { if (vf > 0) a += 26; c.kick = Math.max(0, c.kick - dt); }
+    if (inp.hb) a -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 8);
+    a -= vf * 0.04 + (Math.abs(vf) > 0.1 ? Math.sign(vf) * 0.6 : 0);
+    c.ax = a;
+    let nextVF = vf + a * dt;
+    // A brake impulse must stop at zero before engaging reverse.
+    if (vf > 0 && nextVF < 0 && inp.thr <= 0) nextVF = 0;
+    if (Math.abs(nextVF) < 0.15 && inp.thr === 0) nextVF = 0;
+    c.vx += fx * (nextVF - vf); c.vz += fz * (nextVF - vf);
+    const vl = c.vx * lx + c.vz * lz;
+    const grip = c.drift ? (inp.hb ? 0.22 : 0.48) : (inp.hb ? 0.3 : 1);
+    const rem = vl * damp(d.grip * grip, dt);
+    c.vx -= lx * rem; c.vz -= lz * rem;
+    // No free longitudinal energy from lateral grip; hard turns bleed speed.
+    const cornerDrag = Math.exp(-Math.abs(c.yaw) * Math.min(sp / d.top, 1) * 0.07 * dt);
+    c.vx *= cornerDrag; c.vz *= cornerDrag;
+    const speed = Math.hypot(c.vx, c.vz), limit = top * (c.kick > 0 ? 1.12 : 1.03);
+    if (speed > limit) { const k = (limit + (speed - limit) * Math.exp(-3 * dt)) / speed; c.vx *= k; c.vz *= k; }
+    c.x += c.vx * dt; c.z += c.vz * dt;
+    telemetry(c); drivetrain(c, inp.thr, dt);
+    c.boostVisual += ((c.boost || c.kick > 0 ? 1 : 0) - c.boostVisual) * damp(10, dt);
   }
 
   function collideBuildings(c) {
     const fx = Math.sin(c.h), fz = Math.cos(c.h), r = c.def.wid * 0.5 + 0.15;
     let hit = 0;
     c.contact = false;
-    for (const o of [1.2, -1.2]) {
+    for (const o of [c.def.len * 0.3, -c.def.len * 0.3]) {
       let px = c.x + fx * o, pz = c.z + fz * o;
       const list = blockB(Math.floor(px / P), Math.floor(pz / P));
       for (let q = 0; q < list.length; q++) {
@@ -548,7 +618,11 @@
         const dx = px - cx, dz = pz - cz, d2 = dx * dx + dz * dz;
         if (d2 >= r * r) continue;
         let nx, nz, pen;
-        if (d2 < 1e-6) { nx = px < b.x ? -1 : 1; nz = 0; pen = r + hx - Math.abs(px - b.x); }
+        if (d2 < 1e-6) {
+          const ex = hx - Math.abs(px - b.x), ez = hz - Math.abs(pz - b.z);
+          if (ex < ez) { nx = px < b.x ? -1 : 1; nz = 0; pen = r + ex; }
+          else { nx = 0; nz = pz < b.z ? -1 : 1; pen = r + ez; }
+        }
         else { const d = Math.sqrt(d2); nx = dx / d; nz = dz / d; pen = r - d; }
         c.contact = true; c.hitX = cx; c.hitZ = cz;
         c.x += nx * pen; c.z += nz * pen; px += nx * pen; pz += nz * pen;
@@ -628,14 +702,18 @@
     const s = AC.createBufferSource(); s.buffer = A.nb; s.loop = true;
     const fl = AC.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
     const g = AC.createGain(); g.gain.value = 0;
-    s.connect(fl); fl.connect(g); g.connect(sfxG); s.start();
+    s.connect(fl); fl.connect(g); g.connect(sfxG); s.start(); activeSources.add(s);
     return { f: fl, g };
   }
   function initAudio() {
-    if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+    if (AC) { if (AC.state === 'suspended') AC.resume().catch(e => console.warn('Áudio suspenso.', e)); return; }
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination);
+      master = AC.createGain(); master.gain.value = 0.75;
+      const limiter = AC.createDynamicsCompressor();
+      limiter.threshold.value = -8; limiter.knee.value = 6; limiter.ratio.value = 8;
+      limiter.attack.value = 0.003; limiter.release.value = 0.15;
+      master.connect(limiter); limiter.connect(AC.destination);
       sfxG = AC.createGain(); sfxG.connect(master);
       musG = AC.createGain(); musG.gain.value = 0.5; musG.connect(master);
       const nb = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate), d = nb.getChannelData(0);
@@ -659,8 +737,8 @@
       lfo.connect(lg); lg.connect(A.sir.frequency); A.sir.connect(A.sg); A.sg.connect(sfxG);
       A.sir.start(); lfo.start();
       mNext = AC.currentTime + 0.1; mStep = 0;
-      setInterval(musicTick, 70);
-    } catch (e) { AC = null; }
+      musicTimer = setInterval(musicTick, 70);
+    } catch (e) { console.warn('Áudio procedural indisponível.', e); if (AC) AC.close().catch(console.warn); AC = null; }
   }
   function env(g, t, a, dur, vol) {
     g.gain.setValueAtTime(0.0001, t);
@@ -672,17 +750,22 @@
     o.type = type; o.frequency.setValueAtTime(f0, t);
     if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
     env(g, t, 0.01, dur, vol);
-    if (lp) { const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); f.connect(g); }
+    let filter = null;
+    if (lp) { const f = filter = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); f.connect(g); }
     else o.connect(g);
-    g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+    g.connect(dest); activeSources.add(o);
+    o.onended = () => { activeSources.delete(o); o.disconnect(); g.disconnect(); if (filter) filter.disconnect(); };
+    o.start(t); o.stop(t + dur + 0.05);
   }
   function noiseHit(dest, type, f, q, t, dur, vol) {
     const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
     s.buffer = A.nb; fl.type = type; fl.frequency.value = f; fl.Q.value = q;
     env(g, t, 0.005, dur, vol);
-    s.connect(fl); fl.connect(g); g.connect(dest); s.start(t, Math.random(), dur + 0.05);
+    s.connect(fl); fl.connect(g); g.connect(dest); activeSources.add(s);
+    s.onended = () => { activeSources.delete(s); s.disconnect(); fl.disconnect(); g.disconnect(); };
+    s.start(t, Math.random(), dur + 0.05);
   }
-  const ok = () => AC && !muted;
+  const ok = () => AC && AC.state === 'running' && !muted && !document.hidden;
   function sfxCrash(v) {
     if (!ok()) return; const t = AC.currentTime, vol = clamp(v / 22, 0.15, 0.8);
     noiseHit(sfxG, 'lowpass', 900, 0.7, t, 0.35, vol);
@@ -710,15 +793,13 @@
   }
   function updateAudio(thr, dt) {
     if (!AC) return;
-    const t = AC.currentTime, on = state === 'playing' && !muted;
-    const sp = player.speed, top = player.def.top, gs = top / 6;
-    const gear = Math.min(6, 1 + Math.floor(sp / gs));
+    const t = AC.currentTime, on = state === 'playing' && !muted && !document.hidden;
+    master.gain.setTargetAtTime(muted || document.hidden ? 0 : 0.75, t, 0.04);
+    const sp = player.speed, top = player.def.top;
+    const gear = player.gear;
     if (gear !== A.gear) { if (A.gear !== undefined && gear > A.gear) A.shift = 0.14; A.gear = gear; }
     A.shift = Math.max(0, A.shift - dt);
-    let rpm = 0.2 + 0.8 * clamp((sp - (gear - 1) * gs) / gs, 0, 1);
-    if (sp < 1) rpm = 0.15 + (thr > 0 ? 0.3 : 0);
-    if (thr > 0) rpm += 0.05;
-    if (A.shift > 0) rpm -= 0.25;
+    const rpm = clamp(player.rpm - (A.shift > 0 ? 0.18 : 0), 0.1, 1);
     const f = 38 + rpm * 165;
     A.o1.frequency.setTargetAtTime(f, t, 0.04); A.o2.frequency.setTargetAtTime(f * 0.5, t, 0.04);
     A.ef.frequency.setTargetAtTime(350 + rpm * 1400 + (thr > 0 ? 500 : 0), t, 0.05);
@@ -730,7 +811,7 @@
     A.tire.f.frequency.setTargetAtTime(1000 + sp * 16 + sl * 500, t, 0.08);
     A.wind.g.gain.setTargetAtTime(on ? Math.pow(clamp(sp / top, 0, 1.3), 2) * 0.1 : 0, t, 0.1);
     A.wind.f.frequency.setTargetAtTime(300 + sp * 18, t, 0.1);
-    A.nos.g.gain.setTargetAtTime(on && (player.boost || player.kick > 0) ? 0.12 : 0, t, 0.05);
+    A.nos.g.gain.setTargetAtTime(on ? player.boostVisual * 0.12 : 0, t, 0.05);
     let dn = 1e9;
     for (const c of cops) if (c.mode === 'chase') { const d = Math.hypot(c.x - player.x, c.z - player.z); if (d < dn) dn = d; }
     A.sg.gain.setTargetAtTime(on && dn < 260 ? 0.035 * (1 - dn / 260) : 0, t, 0.2);
@@ -743,7 +824,9 @@
   const mtof = n => 440 * Math.pow(2, (n - 69) / 12);
   function musicTick() {
     if (!AC) return;
-    if (muted || !musicOn) { mNext = Math.max(mNext, AC.currentTime + 0.05); return; }
+    if (muted || !musicOn || document.hidden || AC.state !== 'running') { mNext = Math.max(mNext, AC.currentTime + 0.05); return; }
+    // Drop stale beats after browser throttling; never replay a backlog.
+    mNext = Math.max(mNext, AC.currentTime);
     const spb = 60 / 118 / 4;
     while (mNext < AC.currentTime + 0.3) { playStep(mStep, mNext); mNext += spb; mStep = (mStep + 1) % 64; }
   }
@@ -763,7 +846,8 @@
   /* ---------------- entrada ---------------- */
   const keys = {};
   const touch = { left: false, right: false, gas: false, brake: false, nos: false, hb: false };
-  window.addEventListener('keydown', e => {
+  listen(window, 'keydown', e => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target && e.target.tagName) || (e.target && e.target.isContentEditable)) return;
     initAudio();
     if (e.repeat) { if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); return; }
     keys[e.code] = true;
@@ -775,18 +859,30 @@
     else if (e.code === 'KeyR' && state === 'playing') respawnPlayer();
     else if (e.code === 'KeyC' && state === 'playing' && !mission) cycleCar();
   });
-  window.addEventListener('keyup', e => { keys[e.code] = false; });
-  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (state === 'playing') togglePause(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'playing') togglePause(); });
+  listen(window, 'keyup', e => { keys[e.code] = false; });
+  listen(window, 'blur', () => { clearInput(); if (state === 'playing') togglePause(); });
+  listen(document, 'visibilitychange', () => {
+    clearInput(); last = performance.now(); accumulator = 0;
+    if (document.hidden && state === 'playing') togglePause();
+    if (AC) {
+      if (document.hidden) AC.suspend().catch(console.warn);
+      else { mNext = AC.currentTime + 0.05; AC.resume().catch(console.warn); }
+    }
+  });
   document.querySelectorAll('#touch .tb').forEach(el => {
     const k = el.dataset.k;
     const on = e => { e.preventDefault(); initAudio(); touch[k] = true; el.classList.add('on'); };
     const off = e => { e.preventDefault(); touch[k] = false; el.classList.remove('on'); };
-    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
-    el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off);
-    el.addEventListener('contextmenu', e => e.preventDefault());
+    listen(el, 'pointerdown', on); listen(el, 'pointerup', off);
+    listen(el, 'pointercancel', off); listen(el, 'pointerleave', off);
+    listen(el, 'contextmenu', e => e.preventDefault());
   });
-  document.addEventListener('click', e => { if (e.target && e.target.tagName === 'BUTTON') { initAudio(); sfxClick(); } });
+  listen(document, 'click', e => { if (e.target && e.target.tagName === 'BUTTON') { initAudio(); sfxClick(); } });
+  function clearInput() {
+    for (const k in keys) keys[k] = false;
+    for (const k in touch) touch[k] = false;
+    document.querySelectorAll('#touch .on').forEach(el => el.classList.remove('on'));
+  }
   function readInput() {
     let thr = 0, steer = 0, hb = false, nos = false;
     if (keys.KeyW || keys.ArrowUp || touch.gas) thr += 1;
@@ -797,7 +893,7 @@
     const gps = navigator.getGamepads ? navigator.getGamepads() : null;
     const gp = gps && gps[0];
     if (gp) {
-      if (Math.abs(gp.axes[0]) > 0.15) steer += gp.axes[0];
+      if (Math.abs(gp.axes[0]) > 0.15) steer += Math.sign(gp.axes[0]) * (Math.abs(gp.axes[0]) - 0.15) / 0.85;
       thr += (gp.buttons[7] ? gp.buttons[7].value : 0) - (gp.buttons[6] ? gp.buttons[6].value : 0);
       hb = hb || !!(gp.buttons[0] && gp.buttons[0].pressed);
       nos = nos || !!(gp.buttons[1] && gp.buttons[1].pressed);
@@ -810,8 +906,8 @@
     const dx = b.x - a.x, dz = b.z - a.z;
     if (Math.abs(dx) > 4 || Math.abs(dz) > 4) return 0;
     const d = Math.hypot(dx, dz), rm = 3.3;
-    if (d >= rm || d < 0.01) return 0;
-    const nx = dx / d, nz = dz / d, pen = rm - d;
+    if (d >= rm) return 0;
+    const nx = d > 0.001 ? dx / d : Math.cos(a.h), nz = d > 0.001 ? dz / d : -Math.sin(a.h), pen = rm - d;
     a.x -= nx * pen * 0.5; a.z -= nz * pen * 0.5; b.x += nx * pen * 0.5; b.z += nz * pen * 0.5;
     const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
     if (rv < 0) {
@@ -827,8 +923,8 @@
       const dx = c.x - t.x, dz = c.z - t.z;
       if (Math.abs(dx) > 4 || Math.abs(dz) > 4) continue;
       const d = Math.hypot(dx, dz), rm = 3.3;
-      if (d >= rm || d < 0.01) continue;
-      const nx = dx / d, nz = dz / d;
+      if (d >= rm) continue;
+      const nx = d > 0.001 ? dx / d : Math.cos(c.h), nz = d > 0.001 ? dz / d : -Math.sin(c.h);
       c.x += nx * (rm - d); c.z += nz * (rm - d);
       const rv = (c.vx - t.vx) * nx + (c.vz - t.vz) * nz;
       if (rv < 0) {
@@ -947,7 +1043,7 @@
   function updateRival(r, dt, frozen) {
     const m = mission, nodes = m.nodes, ai = r.ai;
     if (frozen) { r.vx = r.vz = 0; return; }
-    if (ai.finished) { carStep(r, { thr: -0.5, steer: 0, hb: false }, dt); return; }
+    if (ai.finished) { carStep(r, { thr: r.vf > 0.5 ? -0.5 : 0, steer: 0, hb: true }, dt); return; }
     const n = nodes[ai.k];
     if (nodeDist(r, n) < 16) {
       ai.k++;
@@ -1036,7 +1132,7 @@
   }
   function updateCop(c, dt) {
     if (c.mode === 'patrol') {
-      carStep(c, { thr: -0.2, steer: 0, hb: false }, dt);
+      carStep(c, { thr: c.vf > 0.5 ? -0.2 : 0, steer: 0, hb: true }, dt);
       const d = Math.hypot(player.x - c.x, player.z - c.z);
       if (d < 55 && player.speed > 32) { c.mode = 'chase'; startPursuit(); }
       return;
@@ -1158,7 +1254,7 @@
         smoke.emit(wx, 0.25, wz, c.vx * 0.25 + (rnd() - 0.5) * 1.6, 0.6 + rnd() * 1.2, c.vz * 0.25 + (rnd() - 0.5) * 1.6,
           1.0 + rnd() * 0.9, 1.0 + rnd() * 0.6, 2.8, 0.86, 0.86, 0.92, 0.42, 1.2, 0);
       }
-      if (s > 0.55 && sp > 12) {
+      if (s > 0.55 && sp > 12 && c.contact) {
         sparkAcc += dt * 26 * s;
         while (sparkAcc >= 1) {
           sparkAcc -= 1;
@@ -1168,12 +1264,12 @@
         }
       }
     } else { skLast[0] = skLast[1] = null; }
-    if (c.boost || c.kick > 0) {
-      flameAcc += dt * 170;
+    if (c.boostVisual > 0.02) {
+      flameAcc += dt * (quality === 0 ? 55 : 120) * c.boostVisual;
       while (flameAcc >= 1) {
         flameAcc -= 1;
-        const side = (rnd() - 0.5) * 0.8;
-        fxp.emit(c.x - fx * (L / 2 + 0.2) + lx * side, 0.55, c.z - fz * (L / 2 + 0.2) + lz * side,
+        const side = (rnd() < 0.5 ? -1 : 1) * W * 0.28;
+        fxp.emit(c.x - fx * (L / 2 + 0.2) + lx * side, 0.35, c.z - fz * (L / 2 + 0.2) + lz * side,
           c.vx * 0.85 - fx * (6 + rnd() * 4) + (rnd() - 0.5), (rnd() - 0.5) * 0.8, c.vz * 0.85 - fz * (6 + rnd() * 4) + (rnd() - 0.5),
           0.22 + rnd() * 0.2, 0.9, -1.6, 0.45, 0.75, 1, 0.95, 0.5, 0);
       }
@@ -1220,9 +1316,11 @@
   }
 
   /* ---------------- loop de simulação ---------------- */
-  let shake = 0, camH = 0, orbit = 0, lastThr = 0, camRoll = 0;
+  let shake = 0, camH = 0, orbit = 0, lastThr = 0, camRoll = 0, cameraSnap = true, impactCooldown = 0;
+  const dynamicCars = [];
   function simulate(dt) {
     const inp = readInput();
+    impactCooldown = Math.max(0, impactCooldown - dt);
     lastThr = inp.thr; lastHb = inp.hb;
     const frozen = !!(mission && mission.cd > 0);
     if (mission && !mission.done && mission.cd > 0) {
@@ -1230,16 +1328,18 @@
       mission.cd -= dt;
       const now = Math.ceil(mission.cd);
       if (mission.cd <= 0) { showCount('GO!'); sfxCount(true); }
-      else if (now !== before || mission.cd > 3.55) { showCount(String(now)); sfxCount(false); }
+      else if (now !== before || !mission.countShown) { mission.countShown = true; showCount(String(now)); sfxCount(false); }
     }
     if (frozen) { player.vx = player.vz = 0; player.speed = 0; player.vf = 0; }
     else {
-      const wantN = inp.nos && player.nitro > 0.02 && player.vf > 3;
+      if (!inp.nos) player.nosLocked = false;
+      if (player.nitro <= 0.005) player.nosLocked = true;
+      const wantN = inp.nos && !player.nosLocked && player.nitro > 0.005 && player.vf > 3;
       player.boost = wantN;
       if (wantN) player.nitro = Math.max(0, player.nitro - dt * 0.3);
       else player.nitro = Math.min(1, player.nitro + dt * 0.03);
       carStep(player, inp, dt);
-      updateDrift(dt);
+      // Scoring runs after collisions so an impact cannot bank a combo.
     }
     let imp = collideBuildings(player);
     updateTraffic(dt);
@@ -1247,7 +1347,7 @@
     nearMiss();
     for (const r of rivals) { updateRival(r, dt, frozen); trafficCollide(r); }
     for (const c of cops) { updateCop(c, dt); trafficCollide(c); }
-    const dyn = [player].concat(rivals, cops);
+    const dyn = dynamicCars; dyn.length = 0; dyn.push(player, ...rivals, ...cops);
     for (let i = 0; i < dyn.length; i++) for (let j = i + 1; j < dyn.length; j++) {
       const v = pairCollide(dyn[i], dyn[j]);
       if (v > 0 && i === 0) {
@@ -1255,8 +1355,10 @@
         if (cops.includes(dyn[j]) && dyn[j].mode === 'patrol') { dyn[j].mode = 'chase'; startPursuit(); }
       }
     }
-    if (imp > 3) { shake = Math.min(1, shake + imp * 0.03); sfxCrash(imp); impactFX(imp); }
+    if (imp > 3 && impactCooldown === 0) { impactCooldown = 0.12; shake = Math.min(1, shake + imp * 0.03); sfxCrash(imp); impactFX(imp); }
     if (imp > 6 && D.pts > 0) { showMsg('Drift perdido!', 900); resetDrift(); }
+    for (const c of dyn) telemetry(c);
+    if (!frozen) updateDrift(dt);
     if (mission && !mission.done && !frozen) {
       const m = mission;
       m.t += dt;
@@ -1299,18 +1401,22 @@
       const w = (player.drift ? 0.55 : 0.35) * Math.min(1, (spd - 8) / 20);
       th = player.h + wrapA(Math.atan2(player.vx, player.vz) - player.h) * w;
     }
-    camH += wrapA(th - camH) * Math.min(1, dt * (player.drift ? 4 : 5));
+    camH += wrapA(th - camH) * damp(player.drift ? 4 : 5, dt);
     const boosting = player.boost || player.kick > 0;
-    const dist = 7 + spd * 0.045 + (boosting ? 1.8 : 0);
+    const dist = 7 + Math.min(spd, 100) * 0.035 + player.boostVisual * 1.2;
     const fx = Math.sin(camH), fz = Math.cos(camH);
-    const sk = shake * 0.8 + (boosting ? 0.1 : 0) + (spd > player.def.top * 0.85 ? 0.04 : 0);
+    const sk = shake * 0.48 + player.boostVisual * Math.min(spd / 30, 1) * 0.04;
     const sx = (rnd() - 0.5) * sk, sy = (rnd() - 0.5) * sk * 0.6;
-    camera.position.set(player.x - fx * dist + sx, 2.7 + spd * 0.012 + sy, player.z - fz * dist);
-    camera.lookAt(player.x + fx * 8, 1.3, player.z + fz * 8);
+    const k = cameraSnap ? 1 : damp(14, dt);
+    camera.position.x += (player.x - fx * dist + sx - camera.position.x) * k;
+    camera.position.y += (2.7 + spd * 0.009 + clamp(-player.ax * 0.006, -0.12, 0.2) + sy - camera.position.y) * k;
+    camera.position.z += (player.z - fz * dist - camera.position.z) * k;
+    cameraSnap = false;
+    camera.lookAt(player.x + fx * 8 + player.vx * 0.08, 1.1, player.z + fz * 8 + player.vz * 0.08);
     const rollT = player.drift ? clamp(-player.sa * 0.1, -0.16, 0.16) : 0;
     camRoll += (rollT - camRoll) * Math.min(1, dt * 5);
     camera.rotateZ(camRoll);
-    const tf = 62 + spd * 0.35 + (boosting ? 14 : 0) + (player.drift ? 4 : 0);
+    const tf = clamp(62 + spd * 0.19 + player.boostVisual * 7 + (player.drift ? 2 : 0), 62, 88);
     if (Math.abs(camera.fov - tf) > 0.15) { camera.fov += (tf - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
   }
 
@@ -1321,8 +1427,9 @@
     const u = m.userData, sf = clamp(c.speed / 40, 0, 1);
     const rollT = -clamp(c.vl * 0.006 + c.steer * 0.03 * sf, -0.1, 0.1);
     const pitchT = -clamp(c.ax * 0.004, -0.05, 0.07);
-    const k = Math.min(1, dt * 8);
+    const k = damp(8, dt);
     u.roll += (rollT - u.roll) * k; u.pitch += (pitchT - u.pitch) * k;
+    u.tailMat.color.setHex(c.isPlayer && lastThr < 0 && state === 'playing' ? 0xff7777 : 0xff2a2a);
     m.position.set(c.x, 0, c.z);
     m.rotation.y = c.h; m.rotation.x = u.pitch; m.rotation.z = u.roll;
     const spin = c.vf * dt / 0.38;
@@ -1376,7 +1483,39 @@
     $('count').textContent = t; clearTimeout(cntTimer);
     cntTimer = setTimeout(() => { $('count').textContent = ''; }, t === 'GO!' ? 900 : 1100);
   }
+  const hudStyle = document.createElement('style');
+  hudStyle.textContent = `
+    #spd {font-variant-numeric:tabular-nums;text-shadow:0 0 18px #28cce966}
+    #nosB {transition:width .1s linear;box-shadow:0 0 12px #36d9ff88}
+    #gear {font-variant-numeric:tabular-nums}
+    .np-rpm {display:flex;gap:3px;max-width:220px;margin:8px 0 3px;height:6px;pointer-events:none}
+    .np-rpm i {flex:1;background:#192d3b;transform:skewX(-18deg);transition:background .08s}
+    .np-rpm i.active {background:#43e4d0;box-shadow:0 0 5px #43e4d088}
+    .np-rpm i.hot.active {background:#ff626d}
+    #mm {box-sizing:border-box;border:1px solid #6fa1b966;border-radius:50%;background:#10131c;pointer-events:none}
+  `;
+  document.head.appendChild(hudStyle);
+  const rpmBar = document.createElement('div'); rpmBar.className = 'np-rpm';
+  rpmBar.setAttribute('role','meter'); rpmBar.setAttribute('aria-label','Regime do motor');
+  rpmBar.setAttribute('aria-valuemin','0'); rpmBar.setAttribute('aria-valuemax','100');
+  const rpmSegments = [];
+  for (let i = 0; i < 16; i++) { const seg = document.createElement('i'); seg.className = i > 12 ? 'hot' : ''; rpmBar.appendChild(seg); rpmSegments.push(seg); }
+  $('spd').parentElement.appendChild(rpmBar);
   const mmc = $('mm'), mg = mmc.getContext('2d'), MW = 170, MS = 0.32;
+  const mapDpr = Math.min(window.devicePixelRatio || 1, 2);
+  mmc.width = mmc.height = MW * mapDpr;
+  if (!mmc.style.width) mmc.style.width = MW + 'px';
+  if (!mmc.style.height) mmc.style.height = MW + 'px';
+  mg.setTransform(mapDpr, 0, 0, mapDpr, 0, 0);
+  function fitMap() {
+    const a = mmc.getBoundingClientRect(), b = $('spd').parentElement.getBoundingClientRect();
+    if (a.width && b.width && a.left < b.right + 16 && a.right > b.left - 16 && a.top < b.bottom + 16 && a.bottom > b.top - 16) {
+      mmc.style.position = 'fixed'; mmc.style.bottom = '20px'; mmc.style.top = 'auto';
+      mmc.style.left = b.left > window.innerWidth / 2 ? '20px' : 'auto';
+      mmc.style.right = b.left > window.innerWidth / 2 ? 'auto' : '20px';
+    }
+  }
+  listen(window, 'resize', fitMap);
   function drawMap() {
     const ctr = MW / 2, cy = MW * 0.62, sh = Math.sin(player.h), ch = Math.cos(player.h);
     const toS = (x, z) => { const dx = x - player.x, dz = z - player.z; return [ctr - (dx * ch - dz * sh) * MS, cy - (dx * sh + dz * ch) * MS]; };
@@ -1411,7 +1550,10 @@
     if (hudT >= 0.1) {
       hudT = 0;
       $('spd').textContent = Math.round(player.speed * 3.6);
-      $('gear').textContent = String(clamp(1 + Math.floor(player.speed / (player.def.top / 6)), 1, 6));
+      $('gear').textContent = player.gear < 0 ? 'R' : String(player.gear);
+      const rpmCount = Math.round(player.rpm * 16);
+      rpmSegments.forEach((seg, i) => seg.classList.toggle('active', i < rpmCount));
+      rpmBar.setAttribute('aria-valuenow', String(Math.round(player.rpm * 100)));
       $('nosB').style.width = (player.nitro * 100).toFixed(0) + '%';
       $('cash').textContent = '$ ' + save.cash.toLocaleString('pt-BR');
       $('carName').textContent = player.def.name;
@@ -1458,9 +1600,14 @@
   /* ---------------- UI / estados ---------------- */
   function setState(s) {
     prevState = state; state = s;
+    clearInput(); accumulator = 0; last = performance.now(); renderNeeded = true;
+    if (s === 'playing' && prevState !== 'pause') cameraSnap = true;
+    updateAudio(0, 0);
+    if (s !== 'playing') { persist(); fpsT = fpsN = slowWindows = 0; }
     ['menu', 'story', 'garage', 'pause', 'result'].forEach(id => $(id).classList.toggle('hide', id !== s));
     $('hud').classList.toggle('hide', !(s === 'playing' || s === 'pause'));
-    $('touch').classList.toggle('hide', s !== 'playing');
+    if ($('touch')) $('touch').classList.toggle('hide', s !== 'playing');
+    if (s === 'playing' || s === 'pause') fitMap();
     if (s !== 'playing') for (const k in touch) { touch[k] = false; }
     if (s !== 'playing' && sfxOn) { sg.clearRect(0, 0, 320, 180); sfxOn = false; }
   }
@@ -1544,9 +1691,14 @@
   $('bFree').onclick = () => { initAudio(); startFree(); };
   $('bGarage').onclick = () => { initAudio(); openGarage('menu'); };
   $('bQ').onclick = () => { quality = (quality + 1) % 3; applyQuality(); };
-  $('bFull').onclick = () => { const e = document.documentElement; (e.requestFullscreen || e.webkitRequestFullscreen || (() => {})).call(e); };
+  $('bFull').onclick = () => {
+    const el = document.documentElement, request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!request) { showMsg('Tela cheia não está disponível neste navegador.'); return; }
+    try { const result = request.call(el); if (result && result.catch) result.catch(e => { console.warn(e); showMsg('Tela cheia não autorizada.'); }); }
+    catch (e) { console.warn(e); showMsg('Não foi possível entrar em tela cheia.'); }
+  };
   $('bReset').onclick = () => {
-    if (confirm('Apagar todo o progresso?')) { try { localStorage.removeItem('np_save'); } catch (e) {} location.reload(); }
+    if (confirm('Apagar todo o progresso?')) { try { localStorage.removeItem('np_save'); } catch (e) { console.warn('Armazenamento local indisponível.', e); } location.reload(); }
   };
   $('pResume').onclick = togglePause;
   $('pGarage').onclick = () => openGarage('pause');
@@ -1555,25 +1707,38 @@
   $('pauseBtn').onclick = togglePause;
 
   /* ---------------- loop principal ---------------- */
-  let last = performance.now(), fpsT = 0, fpsN = 0, tTotal = 0;
+  const FIXED_DT = 1 / 120, MAX_STEPS = 12;
+  let accumulator = 0, last = performance.now(), fpsT = 0, fpsN = 0, tTotal = 0;
   function frame(now) {
-    requestAnimationFrame(frame);
+    if (stopped) return;
+    rafId = requestAnimationFrame(frame);
+    if (document.hidden || contextLost) { last = now; accumulator = 0; return; }
     let dt = (now - last) / 1000; last = now;
     if (!(dt > 0)) return;
     if (dt > 0.1) dt = 0.1;
-    const sdt = Math.min(dt, 0.033);
+    const paused = state === 'pause' || state === 'result';
+    if (paused && !renderNeeded) { accumulator = 0; return; }
+    renderNeeded = false;
+    const sdt = paused ? 0 : dt;
     tTotal += dt;
     const live = state !== 'pause' && state !== 'result';
     if (state === 'playing') {
-      simulate(sdt);
+      accumulator += dt;
+      let steps = 0;
+      while (accumulator >= FIXED_DT && steps < MAX_STEPS && state === 'playing') {
+        accumulator -= FIXED_DT; simulate(FIXED_DT); steps++;
+      }
+      if (steps === MAX_STEPS) accumulator = Math.min(accumulator, FIXED_DT);
+      if (state !== 'playing') accumulator = 0;
       fpsT += dt; fpsN++;
       if (fpsT > 2.5) {
-        if (fpsN / fpsT < 36 && quality > 0) { quality--; applyQuality(); showMsg('Qualidade reduzida: ' + QN[quality], 1800); }
+        slowWindows = fpsN / fpsT < 34 ? slowWindows + 1 : 0;
+        if (slowWindows >= 2 && quality > 0) { quality--; slowWindows = 0; applyQuality(true); showMsg('Qualidade reduzida: ' + QN[quality], 1800); }
         fpsT = 0; fpsN = 0;
       }
     } else if (live) updateTraffic(sdt);
     updateAudio(state === 'playing' ? lastThr : 0, sdt);
-    updateCamera(sdt);
+    if (!paused) updateCamera(sdt);
     const bi = Math.floor(player.x / P), bj = Math.floor(player.z / P);
     if (!lastBlock || lastBlock[0] !== bi || lastBlock[1] !== bj) { lastBlock = [bi, bj]; rebuildWorld(bi, bj); }
     ground.position.set(Math.round(player.x / P) * P, 0, Math.round(player.z / P) * P);
@@ -1597,6 +1762,34 @@
     renderer.render(scene, camera);
   }
 
+  listen(canvas, 'webglcontextlost', e => {
+    e.preventDefault(); contextLost = true;
+    if (state === 'playing') togglePause();
+    showMsg('Contexto gráfico perdido. Aguardando recuperação…', 10000);
+  });
+  listen(canvas, 'webglcontextrestored', () => {
+    contextLost = false; lastBlock = null; cameraSnap = true; last = performance.now();
+    applyQuality(); showMsg('Gráficos recuperados. Retome pelo menu de pausa.', 5000);
+  });
+  function dispose() {
+    if (stopped) return;
+    stopped = true; persist(); cancelAnimationFrame(rafId);
+    clearInterval(musicTimer); clearTimeout(msgTimer); clearTimeout(cntTimer);
+    for (const [target, type, fn, opts] of listeners) target.removeEventListener(type, fn, opts);
+    activeSources.clear();
+    if (AC && AC.state !== 'closed') AC.close().catch(console.warn);
+    const geometries = new Set(), materials = new Set(), textures = new Set([glowTex, beamT, groundTex]);
+    scene.traverse(obj => {
+      if (obj.geometry) geometries.add(obj.geometry);
+      const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
+      for (const mat of mats) { materials.add(mat); for (const val of Object.values(mat)) if (val && val.isTexture) textures.add(val); }
+    });
+    geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
+    renderer.dispose(); bcache.clear(); hudStyle.remove(); rpmBar.remove(); dom.clear();
+  }
+  listen(window, 'pagehide', e => { if (!e.persisted) dispose(); else { persist(); if (state === 'playing') togglePause(); } });
+  listen(window, 'pageshow', () => { last = performance.now(); accumulator = 0; });
+
   /* ---------------- início ---------------- */
   if (!save.owned.includes(save.cur)) save.cur = 0;
   setPlayerCar(save.cur);
@@ -1604,5 +1797,5 @@
   for (const t of traffic) spawnTraffic(t, true);
   applyQuality();
   setState('menu');
-  requestAnimationFrame(frame);
+  rafId = requestAnimationFrame(frame);
 })();
