@@ -2,54 +2,493 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="NEON PURSUIT — interface visual de corrida urbana futurista.">
-<title>NEON PURSUIT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#070b17">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="NEON PURSUIT — corrida arcade 3D com mundo aberto, carreira, garagem, nitro, drift e perseguições policiais.">
+<title>NEON PURSUIT — Midnight Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root{color-scheme:dark;--bg:#070a12;--panel:#101827;--cyan:#43f5ff;--pink:#ff3e9d;--muted:#91a3ba}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#172542 0%,#080d18 48%,#05070c 100%);color:#f5f8ff;font-family:Arial,Helvetica,sans-serif}
-header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px clamp(18px,5vw,72px);border-bottom:1px solid #25344a}
-.brand{font-weight:900;letter-spacing:.16em;font-size:clamp(20px,3vw,32px)}.brand span{color:var(--cyan)}
-.status{color:var(--muted);font-size:12px;letter-spacing:.15em;text-align:right}
-main{width:min(1180px,92vw);margin:36px auto 60px}
-.hero{position:relative;overflow:hidden;min-height:390px;border:1px solid #2b3d58;border-radius:18px;background:linear-gradient(120deg,rgba(5,12,24,.95),rgba(11,23,42,.83)),repeating-linear-gradient(0deg,transparent 0 39px,rgba(67,245,255,.08) 40px),repeating-linear-gradient(90deg,transparent 0 39px,rgba(67,245,255,.08) 40px);display:flex;align-items:center;padding:clamp(24px,6vw,70px)}
-.hero:before{content:"";position:absolute;width:55vw;height:55vw;max-width:600px;max-height:600px;right:-5%;top:5%;border:2px solid rgba(67,245,255,.18);border-radius:50%;box-shadow:0 0 0 35px rgba(67,245,255,.025),0 0 0 75px rgba(255,62,157,.025)}
-.hero:after{content:"";position:absolute;right:4%;bottom:14%;width:42%;height:3px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan));box-shadow:0 0 22px var(--cyan);transform:rotate(-13deg)}
-.content{position:relative;z-index:1;max-width:620px}
-.kicker{color:var(--cyan);font-size:12px;font-weight:bold;letter-spacing:.28em}
-h1{font-size:clamp(42px,8vw,88px);line-height:.94;margin:18px 0;letter-spacing:-.06em}
-h1 span{color:var(--cyan);text-shadow:0 0 24px #43f5ff55}
-p{color:#b4c3d7;line-height:1.7;max-width:540px}
-.notice{display:inline-block;margin-top:18px;padding:12px 15px;border-left:3px solid var(--pink);background:#ff3e9d12;color:#dce6f4;font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
-.card{padding:22px;border:1px solid #26364d;background:linear-gradient(145deg,#111b2b,#0a101c);border-radius:12px}
-.card small{color:var(--cyan);letter-spacing:.18em;font-weight:bold}
-.card h2{font-size:17px;margin:12px 0 8px}.card p{font-size:13px;margin:0;color:var(--muted)}
-footer{display:flex;justify-content:space-between;gap:16px;margin-top:28px;color:#64758d;font-size:11px;letter-spacing:.12em}
-@media(max-width:700px){header{align-items:flex-start}.status{max-width:130px}.hero{min-height:350px}.hero:before{right:-35%;top:25%}.grid{grid-template-columns:1fr}.hero:after{width:70%;right:-5%}footer{flex-direction:column}}
+  :root{
+    --bg:#060917; --panel:#0a1020; --panel2:#0b1426; --white:#f5f9ff;
+    --muted:#91a5c4; --subtle:#617491; --cyan:#35f2dd; --magenta:#fa367b;
+    --blue:#52a4fc; --gold:#ffce77; --hair:rgba(129,173,218,.23);
+    --space:clamp(16px,3vw,36px);
+  }
+  *, *::before, *::after {box-sizing:border-box}
+  html,body {margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--white);font-family:Rajdhani,Arial,sans-serif}
+  body {isolation:isolate;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  button {font:inherit;cursor:pointer;color:inherit}
+  button:disabled {opacity:.43;cursor:not-allowed;filter:grayscale(.65)}
+  button:focus-visible, a:focus-visible {outline:2px solid var(--cyan);outline-offset:4px}
+  button:not(:disabled):active {transform:translateY(1px) scale(.99)}
+  .hide {display:none!important}
+  .sr-only {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .mono {font-family:Orbitron,system-ui,sans-serif}
+  .eyebrow {display:flex;gap:10px;align-items:center;text-transform:uppercase;letter-spacing:.28em;font:700 10px Orbitron,system-ui,sans-serif;color:var(--cyan)}
+  .eyebrow::before {content:"";width:21px;height:2px;background:var(--cyan);box-shadow:0 0 14px var(--cyan)}
+
+  /* Render 3D do game.js: os IDs abaixo são obrigatórios. */
+  #c {position:fixed;inset:0;width:100%;height:100%;display:block;z-index:-3;background:#0d1024}
+  #sfx {position:fixed;inset:0;width:100%;height:100%;display:block;z-index:4;pointer-events:none;opacity:.9}
+  #sceneFilter {position:fixed;inset:0;pointer-events:none;z-index:-2;background:linear-gradient(90deg,rgba(3,7,18,.93),rgba(4,7,17,.53) 54%,rgba(4,7,17,.18)),linear-gradient(0deg,rgba(3,7,18,.72),transparent 38%,rgba(3,7,18,.28));transition:opacity .4s}
+  body:has(#menu.hide):has(#story.hide):has(#garage.hide) #sceneFilter{opacity:0}
+  body:has(#garage:not(.hide)) #sceneFilter{opacity:.60}
+  body:has(#pause:not(.hide)) #sceneFilter, body:has(#result:not(.hide)) #sceneFilter{opacity:.8;background:rgba(2,6,16,.75)}
+  .scanlines {position:fixed;z-index:3;inset:0;pointer-events:none;opacity:.15;background:repeating-linear-gradient(0deg,transparent 0,transparent 4px,rgba(210,230,255,.08) 5px,transparent 6px)}
+  .screen-corners {position:fixed;z-index:5;inset:12px;pointer-events:none;background:
+    linear-gradient(var(--cyan),var(--cyan)) left top/18px 1px no-repeat,linear-gradient(var(--cyan),var(--cyan)) left top/1px 18px no-repeat,
+    linear-gradient(var(--cyan),var(--cyan)) right bottom/18px 1px no-repeat,linear-gradient(var(--cyan),var(--cyan)) right bottom/1px 18px no-repeat;opacity:.25}
+
+  /* Painéis e navegação */
+  .panel {position:fixed;z-index:11;inset:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#24445e transparent;pointer-events:none}
+  .panel > .panel-content {pointer-events:auto}
+  .panel-content {position:relative;width:min(525px,calc(100vw - 64px));min-height:100%;padding:clamp(34px,7vh,84px) 10px 32px clamp(25px,5.5vw,92px);display:flex;flex-direction:column;justify-content:center}
+  .topline {position:absolute;top:clamp(22px,4.5vh,48px);left:clamp(24px,5.5vw,92px);right:0;display:flex;align-items:center;gap:11px;color:#a5b8d5;font:600 10px Orbitron,system-ui,sans-serif;letter-spacing:.10em;white-space:nowrap}
+  .topline .statusdot {width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 13px var(--cyan)}
+  .topline .dash {flex:1;min-width:18px;height:1px;background:linear-gradient(90deg,var(--hair),transparent)}
+  .hero-title {position:relative;display:flex;flex-direction:column;margin:19px 0 14px;font:900 clamp(67px,9.4vw,136px)/.76 Barlow Condensed,Impact,Arial,sans-serif;letter-spacing:-.026em;text-transform:uppercase;filter:drop-shadow(0 11px 27px rgba(0,0,0,.5))}
+  .hero-title .accent {color:var(--magenta);font-style:italic;margin-left:12px;text-shadow:0 0 38px rgba(250,54,123,.18)}
+  .hero-title::after {position:absolute;content:"";width:80%;height:2px;left:0;bottom:-18px;background:linear-gradient(90deg,var(--magenta),var(--cyan),transparent)}
+  .menu-sub {margin:27px 0 12px;max-width:410px;font:600 24px/1.1 Barlow Condensed,Impact,sans-serif;text-transform:uppercase;letter-spacing:.13em}
+  .menu-copy {margin:0 0 25px;max-width:420px;font:500 17px/1.45 Rajdhani,system-ui,sans-serif;color:var(--muted)}
+  .menu-actions {display:grid;gap:8px;margin:7px 0 18px;width:100%}
+  .btn {position:relative;display:inline-flex;gap:13px;align-items:center;justify-content:center;border:1px solid var(--hair);background:linear-gradient(125deg,rgba(22,38,66,.94),rgba(11,21,39,.96));min-height:48px;padding:12px 16px;transition:background .2s,border-color .2s,box-shadow .2s,transform .12s;text-align:left;text-decoration:none;overflow:hidden}
+  .btn:not(:disabled):hover{border-color:rgba(53,242,221,.72);background:linear-gradient(125deg,rgba(25,63,80,.95),rgba(11,22,42,.95));box-shadow:0 0 28px rgba(53,242,221,.11)}
+  .btn .btn-copy {display:flex;flex-direction:column;gap:3px;flex:1}
+  .btn .btn-heading {font:800 15px Orbitron,system-ui,sans-serif;letter-spacing:.035em;text-transform:uppercase}
+  .btn small {font:600 12px Rajdhani,system-ui,sans-serif;color:#9db1cb;letter-spacing:.03em}
+  .btn .btn-icon{display:grid;place-items:center;width:35px;height:35px;flex-shrink:0;color:var(--cyan);border:1px solid rgba(53,242,221,.24);font:800 18px Orbitron,system-ui,sans-serif}
+  .btn .arrow{font-size:20px;color:#adc2d8;line-height:1}
+  .btn-primary {min-height:69px;background:linear-gradient(108deg,#049f9c,#1f6193 70%,#244a73);border-color:rgba(124,255,232,.7);box-shadow:0 10px 34px rgba(0,172,172,.17)}
+  .btn-primary .btn-icon {background:#ffffff18;border-color:#ffffff50;color:white}
+  .btn-primary .btn-heading{font-size:16px}
+  .btn-primary small{color:#ddffff}
+  .btn-danger{color:#ffb4c9;border-color:#8c3652}
+  .btn-subtle{background:rgba(9,20,37,.65)}
+  .menu-bottom-actions {display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .menu-bottom-actions .btn {font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.03em;min-height:40px;padding:9px 7px;text-align:center}
+  #bReset {margin-top:9px;background:none;border:0;color:#7890aa;align-self:center;text-transform:uppercase;font:700 10px Orbitron,sans-serif;letter-spacing:.12em;padding:7px}
+  #bReset:hover{color:#ff9db9}
+  .tiny-info {margin-top:16px;border-top:1px solid var(--hair);padding-top:14px;color:#7c90ad;font:700 11px Rajdhani,sans-serif;letter-spacing:.08em}
+  .tiny-info strong {color:var(--cyan)}
+  .decoration {position:fixed;pointer-events:none;right:clamp(20px,5vw,84px);bottom:11%;max-width:31vw;color:#c5dae9;z-index:1}
+  .decoration .code {font:700 clamp(12px,1.6vw,20px) Orbitron,sans-serif;color:#d5e9ff;letter-spacing:.12em;text-align:right}
+  .decoration .code span {color:var(--cyan)}
+  .decoration .line{height:1px;width:100%;margin:13px 0 10px;background:linear-gradient(90deg,transparent,#56b8c8)}
+  .decoration .tags {display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;font:700 10px Orbitron,sans-serif;color:#a9bad5}
+  .tag {border:1px solid #7694ac66;padding:5px 7px;background:#050a17aa}
+
+  /* Carreira */
+  #story .panel-content {width:min(670px,calc(100vw - 40px));justify-content:flex-start;padding-top:clamp(90px,12vh,125px)}
+  .section-title {margin:15px 0 9px;font:900 clamp(40px,5.6vw,64px)/.95 Barlow Condensed,Impact,sans-serif;letter-spacing:.015em;text-transform:uppercase}
+  .section-title em{color:var(--magenta);font-style:normal}
+  .section-copy{color:var(--muted);font-size:17px;max-width:460px;line-height:1.4;margin:0 0 24px}
+  #chList {display:grid;gap:8px;padding-right:4px;margin-bottom:18px}
+  #chList .ch {position:relative;display:flex;justify-content:space-between;gap:15px;align-items:center;text-align:left;padding:17px 19px;min-height:69px;border:1px solid rgba(103,160,195,.28);background:linear-gradient(105deg,rgba(8,29,50,.9),rgba(6,12,30,.82));color:white;font:800 15px Orbitron,sans-serif;letter-spacing:.01em;transition:border-color .18s,transform .15s,background .18s}
+  #chList .ch::before {content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.8}
+  #chList .ch small {font:700 12px Rajdhani,sans-serif;color:#83eadd;text-align:right;max-width:160px;line-height:1.3}
+  #chList .ch:hover:not(:disabled){border-color:var(--cyan);transform:translateX(3px)}
+  #chList .ch:disabled::before{background:#60738a;opacity:.4}
+  #chList .ch:disabled small{color:#8294ac}
+  .back-line {display:flex;gap:9px;align-items:center;margin-top:7px}
+  .back-line > .btn{min-width:170px}
+  .stat-chip {padding:12px;border:1px solid var(--hair);font:700 12px Orbitron,sans-serif;letter-spacing:.08em;color:var(--muted)}
+  .stat-chip strong{color:var(--cyan)}
+
+  /* Garagem */
+  #garage .panel-content{width:min(530px,calc(100vw - 50px))}
+  .garage-head{display:flex;align-items:center;gap:12px;margin-top:18px}
+  .garage-head button{background:linear-gradient(130deg,#163650,#0c172f);border:1px solid #5bcce055;width:46px;height:43px;flex-shrink:0;font-size:22px;color:var(--cyan)}
+  #gCash{flex:1;text-align:center;font:800 16px Orbitron,sans-serif;color:var(--gold)}
+  .car-name {margin:20px 0 6px;font:900 clamp(39px,5vw,59px)/1 Barlow Condensed,Impact,sans-serif;letter-spacing:.035em;text-transform:uppercase}
+  .car-class {color:var(--cyan);font:700 11px Orbitron,sans-serif;letter-spacing:.18em;text-transform:uppercase;margin:0 0 15px}
+  .stats {display:grid;gap:13px;margin:24px 0}
+  .stat {display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;color:#ccd8ea;font:700 15px Rajdhani,sans-serif;text-transform:uppercase;letter-spacing:.09em}
+  .bar {height:7px;overflow:hidden;background:#193049;border:1px solid #3b536544;transform:skewX(-12deg)}
+  .bar i{height:100%;display:block;background:linear-gradient(90deg,#267fff,var(--cyan));box-shadow:0 0 11px rgba(53,242,221,.33)}
+  .swatch-label{font:700 11px Orbitron,sans-serif;letter-spacing:.16em;color:#9db1cc;text-transform:uppercase}
+  .swatches{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 20px;min-height:35px}
+  .sw{border-radius:50%;width:32px;height:32px;border:2px solid #ffffff9d;padding:0;transition:transform .15s;box-shadow:inset 0 0 0 2px #071023;}
+  .sw:hover{transform:scale(1.12)}
+  .garage-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .garage-actions .btn{font:800 13px Orbitron,sans-serif;text-transform:uppercase}
+  .garage-actions #gAct{background:linear-gradient(115deg,#078c9a,#235f98);border-color:var(--cyan)}
+  .garage-tip{margin:14px 0;color:#98aec9;font-size:13px;letter-spacing:.05em}
+
+  /* Pausa e resultado */
+  #pause, #result {display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(1,5,13,.38);backdrop-filter:blur(4px)}
+  #pause .panel-content, #result .panel-content{min-height:0;width:min(490px,100%);padding:clamp(25px,4.5vw,42px);background:linear-gradient(145deg,rgba(9,20,39,.97),rgba(4,10,25,.94));border:1px solid rgba(75,183,209,.42);box-shadow:0 24px 100px #000c;display:block}
+  #pause .panel-content::before,#result .panel-content::before {content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--cyan),var(--magenta),transparent)}
+  #pause .section-title{font-size:72px;margin:15px 0}
+  .modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:24px}
+  .modal-actions .btn {font:800 12px Orbitron,sans-serif;text-align:center;text-transform:uppercase}
+  .wide {grid-column:1/-1}
+  #rTitle {font:900 clamp(44px,6vw,74px)/1 Barlow Condensed,Impact,sans-serif;text-transform:uppercase;margin:15px 0;color:var(--cyan)}
+  #rText {font-size:19px;color:#d5e4f2;line-height:1.4;white-space:pre-line;margin:10px 0 20px}
+  #rBtns{display:grid;gap:8px}
+  #rBtns button {border:1px solid #3accc6a8;background:#113954;min-height:46px;font:700 12px Orbitron,sans-serif;text-transform:uppercase;padding:13px}
+  #rBtns button:hover{background:#165d73}
+
+  /* HUD - só aparece em playing/pause (controlado pelo game.js) */
+  #hud {position:fixed;z-index:7;inset:0;pointer-events:none;padding:var(--space)}
+  .hud-top {display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .hud-stack{display:flex;gap:8px;align-items:flex-start}
+  .hud-card {background:linear-gradient(115deg,rgba(3,12,27,.88),rgba(7,18,39,.78));border:1px solid rgba(111,162,202,.3);padding:12px 16px;min-width:145px;backdrop-filter:blur(7px);box-shadow:0 14px 28px #0005;transform:skewX(-7deg)}
+  .hud-card > *{transform:skewX(7deg)}
+  .hud-label{font:700 10px Orbitron,sans-serif;letter-spacing:.11em;text-transform:uppercase;color:#94a9c6}
+  #cash {font:800 19px Orbitron,sans-serif;color:var(--gold);margin-top:6px}
+  #carName {font:800 15px Orbitron,sans-serif;margin-top:7px;line-height:1.3}
+  #pauseBtn{pointer-events:auto;border:1px solid #7fe3eb8a;background:#0a263aeb;min-width:90px;padding:13px 15px;font:800 11px Orbitron,sans-serif;letter-spacing:.10em}
+  #pauseBtn:hover{background:#16637b}
+  #mm{position:absolute;left:var(--space);bottom:clamp(190px,28vh,270px);width:170px;height:170px;box-shadow:0 0 35px #000a,0 0 0 6px #0b18245c}
+  .hud-left-bottom{position:absolute;left:var(--space);bottom:var(--space);width:min(295px,32vw)}
+  .objective{background:linear-gradient(90deg,rgba(6,19,37,.94),rgba(6,19,37,.5));border-left:3px solid var(--cyan);padding:13px 17px;box-shadow:0 5px 22px #0005}
+  .obj-label{font:700 10px Orbitron,sans-serif;letter-spacing:.18em;color:#7ba9bd;text-transform:uppercase;margin-bottom:8px}
+  #mission{font:700 14px Orbitron,sans-serif;line-height:1.5;color:#f1faff}
+  #pos{font:700 17px Rajdhani,sans-serif;color:var(--cyan);margin-top:6px}
+  #timer{font:800 21px Orbitron,sans-serif;margin-top:5px;color:white}
+  #drift{font:800 15px Orbitron,sans-serif;color:var(--gold);text-shadow:0 0 14px #ffbc6299;margin-top:7px}
+  .speed-wrap {position:absolute;right:var(--space);bottom:var(--space);width:min(360px,38vw);padding:16px 18px 14px;
+    background:linear-gradient(125deg,rgba(4,14,31,.95),rgba(6,14,29,.84) 67%,rgba(38,9,30,.84));
+    border:1px solid rgba(92,208,227,.55);backdrop-filter:blur(12px);box-shadow:0 14px 40px #0009,0 0 23px rgba(0,231,226,.07);
+    clip-path:polygon(0 0,94% 0,100% 17%,100% 100%,6% 100%,0 83%);
+  }
+  .speed-wrap::before {content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--cyan),#fff,#ed3b83,transparent)}
+  .speed-meta {display:flex;justify-content:space-between;align-items:center;gap:10px;white-space:nowrap;font:800 9px Orbitron,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#8dadc8}
+  .speed-meta .live {color:var(--magenta)}
+  .speed-line {display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:8px}
+  .speed-value {display:flex;gap:8px;align-items:baseline;min-width:0}
+  #spd {font:900 clamp(48px,6.2vw,80px)/.9 Barlow Condensed,Impact,sans-serif;letter-spacing:-.02em;color:#fff}
+  .unit{font:800 10px Orbitron,sans-serif;color:var(--cyan);white-space:nowrap}
+  .gearbox{display:flex;flex-direction:column;gap:2px;text-align:center;flex-shrink:0}
+  .gearbox span{font:700 8px Orbitron,sans-serif;color:#8cabc8;letter-spacing:.12em}
+  #gear {font:900 33px Barlow Condensed,Impact,sans-serif;line-height:1.1;color:#fff;text-shadow:0 0 15px rgba(243,58,114,.4)}
+  .gauge-line{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px}
+  .nos-label{font:800 10px Orbitron,sans-serif;letter-spacing:.12em;color:#7accff}
+  .nitro-hint{font:700 9px Orbitron,sans-serif;letter-spacing:.06em;color:#738fab}
+  .meter{margin-top:7px;height:7px;background:#20405b;border:1px solid #45728f55;transform:skewX(-14deg);overflow:hidden}
+  #nosB{display:block;width:100%;height:100%;background:linear-gradient(90deg,#2969f1,#40c9ff,var(--cyan))}
+  .speed-footer{display:flex;justify-content:space-between;align-items:center;color:#6c8dab;font:700 8px Orbitron,sans-serif;text-transform:uppercase;letter-spacing:.10em;margin-top:12px}
+  #count {position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);font:900 clamp(72px,12vw,144px)/1 Barlow Condensed,Impact,sans-serif;color:#fff;text-shadow:0 0 40px var(--cyan);white-space:nowrap}
+  #msg {position:absolute;top:23%;left:50%;transform:translateX(-50%);width:min(600px,85vw);text-align:center;font:800 clamp(15px,2vw,25px) Orbitron,sans-serif;line-height:1.6;color:var(--cyan);text-shadow:0 0 19px rgba(53,242,221,.55);letter-spacing:.06em}
+  #heat{position:absolute;left:50%;top:65px;transform:translateX(-50%);width:min(260px,22vw);height:7px;background:#3c1529;border:1px solid #ff416b55}
+  #bustB {display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--magenta));box-shadow:0 0 15px var(--magenta)}
+  #vig{position:fixed;z-index:5;inset:0;pointer-events:none;border:0 solid transparent}
+  #vig.pursuit{border:8px solid rgba(255,53,79,.37);box-shadow:inset 0 0 75px rgba(255,35,69,.24);animation:copblink .75s ease-in-out infinite alternate}
+  @keyframes copblink{to{border-color:rgba(54,96,255,.38);box-shadow:inset 0 0 80px rgba(41,99,245,.25)}}
+
+  /* Controles de toque - os seis data-k são lidos pelo game.js no carregamento. */
+  #touch{position:fixed;z-index:9;inset:0;pointer-events:none;display:none;touch-action:none;user-select:none;-webkit-user-select:none}
+  .touch-side {display:flex;gap:9px;align-items:flex-end;position:absolute;bottom:calc(17px + env(safe-area-inset-bottom));pointer-events:none}
+  .touch-side.left{left:14px}
+  .touch-side.right{right:14px}
+  .tb{pointer-events:auto;touch-action:none;user-select:none;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;width:64px;height:64px;border:1px solid rgba(91,228,227,.56);border-radius:14px;background:linear-gradient(145deg,rgba(11,35,52,.78),rgba(10,17,41,.91));backdrop-filter:blur(7px);box-shadow:0 8px 25px #0009;color:#fff;text-shadow:0 0 12px #000;transition:background .11s,transform .11s}
+  .tb b{font:900 26px Barlow Condensed,Impact,sans-serif;line-height:1}
+  .tb small{font:800 9px Rajdhani,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+  .tb.on,.tb:active{background:#078f92df;border-color:#cbfff8;transform:scale(.95)}
+  .tb.nos{border-color:#669cf4;color:#a9ccff}
+  .tb.hb{border-color:#ec6d9c;color:#ffa9c7}
+  .tb.gas{width:74px;height:75px;border-color:#65eccc;color:#9bfff0}
+  .tb.brake{border-color:#ff9f9e;color:#ffc7c1}
+
+  /* Manual de comandos (independente do motor) */
+  #help{position:fixed;inset:0;z-index:25;display:grid;place-items:center;padding:16px;background:rgba(2,6,14,.86);backdrop-filter:blur(12px)}
+  .help-box{position:relative;max-height:92vh;overflow:auto;width:min(720px,100%);padding:clamp(22px,4vw,40px);border:1px solid #427a99;background:linear-gradient(140deg,#101e36,#070d1e);box-shadow:0 25px 110px #000d}
+  .help-box .section-title{margin-bottom:15px}
+  .help-grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}
+  .help-col{border:1px solid var(--hair);padding:17px;background:#050e1eb5}
+  .help-col h3{font:800 12px Orbitron,sans-serif;color:var(--cyan);text-transform:uppercase;letter-spacing:.12em;margin:0 0 15px}
+  .help-row{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#cddbf0;margin:9px 0;font:600 16px Rajdhani,sans-serif}
+  .help-row kbd{font:700 10px Orbitron,sans-serif;color:#f1faff;border:1px solid #53768d;border-bottom-width:3px;padding:7px 8px;white-space:nowrap;background:#16324b}
+  #helpClose{width:100%;margin-top:20px;font:800 12px Orbitron,sans-serif;text-transform:uppercase}
+
+  /* Carregamento e diagnóstico; nunca bloqueia o motor com uma tela permanente */
+  #boot {position:fixed;z-index:30;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:13px;text-align:center;background:radial-gradient(ellipse at 50% 50%,#132942,#050812 70%);padding:25px}
+  .boot-logo{font:900 clamp(38px,8vw,72px)/1 Barlow Condensed,Impact,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+  .boot-logo span{color:var(--magenta)}
+  .boot-track{height:3px;width:180px;background:#20485a;overflow:hidden}
+  .boot-track i{display:block;width:38%;height:100%;background:var(--cyan);animation:bootline 1.2s infinite ease-in-out}
+  @keyframes bootline{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+  #bootText{font:700 11px Orbitron,sans-serif;color:#abc4db;letter-spacing:.10em;max-width:390px;line-height:1.7}
+  #bootRetry{margin-top:15px;padding:12px;border:1px solid var(--cyan);background:#0c3040;display:none}
+  .buildmark{position:fixed;right:21px;top:17px;pointer-events:none;z-index:10;color:#6684aa;font:700 9px Orbitron,sans-serif;letter-spacing:.1em}
+
+
+  body:has(#hud:not(.hide)) .buildmark {display:none}
+  @media(max-width:780px){.buildmark{display:none}}
+  @media (min-width:1000px) and (max-height:700px){.panel-content{padding-top:65px;padding-bottom:20px;justify-content:flex-start}.hero-title{font-size:100px}.menu-copy{margin-bottom:13px}.menu-actions{gap:5px}.btn-primary{min-height:62px}}
+  @media (max-width:780px) {
+    #sceneFilter{background:linear-gradient(90deg,rgba(3,7,18,.95),rgba(3,7,18,.7)),linear-gradient(0deg,#050a19,transparent)}
+    .panel-content{padding:77px 23px 35px;width:min(560px,100%);margin:auto;justify-content:flex-start}
+    .topline{left:23px;top:24px;right:20px}
+    .hero-title{font-size:clamp(80px,18vw,140px)}
+    .menu-sub{font-size:24px}
+    .decoration{display:none}
+    #story .panel-content,#garage .panel-content{width:min(600px,100%);padding:78px 22px 25px}
+    .section-title{font-size:55px}
+  }
+  @media (max-width:650px) {
+    :root{--space:12px}
+    #hud .hud-card{padding:8px 10px;min-width:0}
+    #hud #cash{font-size:13px}
+    #hud #carName{font-size:11px;max-width:130px}
+    #pauseBtn{padding:10px 9px;min-width:63px;font-size:9px}
+    #mm {width:106px!important;height:106px!important;left:auto!important;right:12px!important;top:88px!important;bottom:auto!important}
+    .hud-left-bottom{left:12px;top:91px;bottom:auto;width:min(58vw,240px)}
+    .objective{padding:9px 10px}
+    .obj-label{font-size:8px;margin-bottom:5px}
+    #mission{font-size:10px}
+    #pos{font-size:13px;margin-top:4px}
+    #timer{font-size:14px;margin-top:3px}
+    #drift{font-size:11px}
+    .speed-wrap{width:min(244px,58vw);right:9px;bottom:calc(103px + env(safe-area-inset-bottom));padding:10px 12px}
+    .speed-meta{font-size:6px;gap:3px}
+    #spd{font-size:49px}
+    .unit{font-size:7px}
+    .gearbox span{font-size:7px}
+    #gear{font-size:24px}
+    .gauge-line{margin-top:8px}
+    .nos-label{font-size:8px}
+    .nitro-hint{font-size:7px}
+    .speed-footer{font-size:6px;margin-top:6px}
+    .np-rpm{margin-top:6px!important}
+    #msg{top:35%;font-size:13px;width:95vw}
+    #count{top:41%}
+    #heat{top:70px;width:40vw;left:54%}
+    .menu-bottom-actions{grid-template-columns:1fr 1fr}
+    .menu-bottom-actions .btn:nth-child(3){grid-column:1/-1}
+    .help-grid{grid-template-columns:1fr}
+    .touch-side.left{left:8px}
+    .touch-side.right{right:8px}
+    .touch-side{gap:5px}
+    .tb {width:55px;height:59px;border-radius:12px}
+    .tb.gas{width:62px;height:67px}
+    .tb b{font-size:23px}
+    .tb small{font-size:8px}
+    #touch:not(.hide){display:block}
+    #pause .panel-content,#result .panel-content{padding:26px}
+  }
+  @media (hover:none) and (pointer:coarse) and (min-width:651px){#touch:not(.hide){display:block}}
+  @media (max-width:390px){.hud-card:nth-child(1){padding:7px!important}.hud-card:nth-child(2){max-width:114px}.speed-wrap{width:202px}#spd{font-size:44px}.tb{width:49px;height:55px}.tb.gas{width:55px;height:61px}.topline{font-size:9px}.menu-copy{font-size:15px}.hero-title{font-size:75px}}
+  @media (max-height:520px) and (orientation:landscape){.hud-left-bottom{top:75px}.speed-wrap{bottom:9px;width:218px}.touch-side{bottom:10px}.tb{height:46px;width:52px}.tb.gas{height:50px;width:55px}#mm{top:71px!important}.panel-content{padding-top:67px}.hero-title{font-size:75px}.menu-copy{margin-bottom:10px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">NEON <span>PURSUIT</span></div>
-  <div class="status">URBAN RACING PROJECT<br>HTML VISUAL PREVIEW</div>
-</header>
-<main>
-  <section class="hero">
-    <div class="content">
-      <div class="kicker">NIGHT DRIVE // BUILD 001</div>
-      <h1>OWN THE<br><span>NIGHT.</span></h1>
-      <p>Ruas iluminadas, motores preparados e uma cidade que nunca desacelera. NEON PURSUIT é um projeto de corrida urbana com identidade visual inspirada nos jogos de corrida clássicos.</p>
-      <div class="notice">Prévia visual estática — este arquivo contém somente HTML e CSS, sem JavaScript.</div>
+  <canvas id="c" aria-label="Mundo tridimensional do jogo"></canvas>
+  <canvas id="sfx" aria-hidden="true"></canvas>
+  <div id="sceneFilter" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="screen-corners" aria-hidden="true"></div>
+  <div id="vig" aria-hidden="true"></div>
+  <span class="buildmark" aria-hidden="true">NP // V3.0 · MIDNIGHT EDITION</span>
+
+  <!-- MENU PRINCIPAL -->
+  <section id="menu" class="panel" aria-label="Menu principal">
+    <div class="panel-content">
+      <div class="topline"><span class="statusdot"></span><span>MIDNIGHT CITY / 03:16 AM</span><div class="dash"></div><span>STREET RACING</span></div>
+      <div class="eyebrow">A cidade é sua pista</div>
+      <h1 class="hero-title"><span>NEON</span><span class="accent">PURSUIT</span></h1>
+      <h2 class="menu-sub">Sem limites. Sem linha de chegada.</h2>
+      <p class="menu-copy">Domine as ruas, personalize seu carro, desafie os melhores pilotos e escape das viaturas. A noite está só começando.</p>
+      <div class="menu-actions">
+        <button id="bFree" class="btn btn-primary" type="button">
+          <span class="btn-icon" aria-hidden="true">↗</span>
+          <span class="btn-copy"><strong class="btn-heading">Explorar mundo aberto</strong><small>Trânsito, velocidade, drift e perseguições</small></span><span class="arrow" aria-hidden="true">→</span>
+        </button>
+        <button id="bStory" class="btn" type="button">
+          <span class="btn-icon" aria-hidden="true">◈</span>
+          <span class="btn-copy"><strong class="btn-heading">Modo carreira</strong><small>5 capítulos • recompensas e carros novos</small></span><span class="arrow" aria-hidden="true">→</span>
+        </button>
+        <button id="bGarage" class="btn" type="button">
+          <span class="btn-icon" aria-hidden="true">⌁</span>
+          <span class="btn-copy"><strong class="btn-heading">Minha garagem</strong><small>Comprar, selecionar e pintar veículos</small></span><span class="arrow" aria-hidden="true">→</span>
+        </button>
+      </div>
+      <div class="menu-bottom-actions">
+        <button id="bQ" class="btn btn-subtle" type="button">Qualidade: Média</button>
+        <button id="bFull" class="btn btn-subtle" type="button">⛶ Tela cheia</button>
+        <button id="bHelp" class="btn btn-subtle" type="button">? Comandos</button>
+      </div>
+      <button id="bReset" type="button">Reiniciar progresso salvo</button>
+      <div class="tiny-info"><strong>WASD / SETAS</strong> dirigir &nbsp;·&nbsp; <strong>SHIFT</strong> nitro &nbsp;·&nbsp; <strong>ESPAÇO</strong> drift &nbsp;·&nbsp; <strong>ESC</strong> pausa</div>
     </div>
   </section>
-  <section class="grid" aria-label="Características do projeto">
-    <article class="card"><small>01 / CITY</small><h2>Ruas noturnas</h2><p>Atmosfera urbana com painéis escuros e acentos neon.</p></article>
-    <article class="card"><small>02 / GARAGE</small><h2>Máquinas únicas</h2><p>Uma garagem pensada para carros, personalização e estilo.</p></article>
-    <article class="card"><small>03 / PURSUIT</small><h2>Corrida intensa</h2><p>Uma identidade visual feita para velocidade e competição.</p></article>
+  <div class="decoration" aria-hidden="true"><div class="code">DRIVE <span>AFTER DARK.</span></div><div class="line"></div><div class="tags"><span class="tag">OPEN WORLD</span><span class="tag">5 CHAPTERS</span><span class="tag">NEON 3D</span></div></div>
+
+  <!-- CARREIRA: game.js gera os botões em #chList -->
+  <section id="story" class="panel hide" aria-label="Modo carreira">
+    <div class="panel-content">
+      <div class="topline"><span class="statusdot"></span><span>STREET CIRCUIT // CAMPAIGN</span><div class="dash"></div></div>
+      <div class="eyebrow">Ascensão nas ruas</div>
+      <h2 class="section-title">MODO <em>CARREIRA</em></h2>
+      <p class="section-copy">Cinco capítulos, rivais cada vez mais rápidos e recompensas para ampliar sua garagem. Termine um desafio para liberar o seguinte.</p>
+      <div id="chList" aria-label="Lista de capítulos"></div>
+      <div class="back-line"><button id="bStoryBack" class="btn btn-subtle" type="button">← Voltar ao menu</button><span class="stat-chip">TOTAL <strong>05 ETAPAS</strong></span></div>
+    </div>
   </section>
-  <footer><span>NEON PURSUIT</span><span>ARQUIVO ESTÁTICO • SEM SCRIPTS • SEM DEPENDÊNCIAS EXTERNAS</span></footer>
-</main>
+
+  <!-- GARAGEM -->
+  <section id="garage" class="panel hide" aria-label="Garagem">
+    <div class="panel-content">
+      <div class="topline"><span class="statusdot"></span><span>GARAGE // CUSTOM SHOP</span><div class="dash"></div></div>
+      <div class="eyebrow">Performance e estilo</div>
+      <h2 class="section-title">SUA <em>GARAGEM</em></h2>
+      <div class="garage-head"><button id="gPrev" type="button" aria-label="Carro anterior">‹</button><span id="gCash">$ 3.000</span><button id="gNext" type="button" aria-label="Próximo carro">›</button></div>
+      <h3 id="gName" class="car-name">Vira-Lata 1.0</h3>
+      <p class="car-class">Street spec / performance edition</p>
+      <div id="gStats" class="stats" aria-label="Atributos do veículo"></div>
+      <div class="swatch-label">Pintura disponível</div>
+      <div id="gSw" class="swatches" aria-label="Cores do veículo"></div>
+      <div class="garage-actions"><button id="gAct" class="btn" type="button">Selecionar</button><button id="gBack" class="btn btn-subtle" type="button">Voltar</button></div>
+      <p class="garage-tip">Novos carros são concedidos na carreira e também podem ser adquiridos com créditos.</p>
+    </div>
+  </section>
+
+  <!-- PAUSA -->
+  <section id="pause" class="panel hide" aria-label="Jogo pausado">
+    <div class="panel-content">
+      <div class="eyebrow">Sistema em espera</div>
+      <h2 class="section-title">JOGO <em>PAUSADO</em></h2>
+      <p class="section-copy">O relógio parou. Prepare seu próximo movimento.</p>
+      <div class="modal-actions">
+        <button id="pResume" class="btn btn-primary wide" type="button">▶ Continuar</button>
+        <button id="pRetry" class="btn" type="button">↻ Reiniciar desafio</button>
+        <button id="pGarage" class="btn" type="button">⌁ Garagem</button>
+        <button id="pHelp" class="btn" type="button">? Comandos</button>
+        <button id="pMenu" class="btn btn-subtle wide" type="button">← Menu principal</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTADO: game.js preenche #rTitle, #rText e #rBtns -->
+  <section id="result" class="panel hide" aria-label="Resultado da corrida">
+    <div class="panel-content"><div class="eyebrow">Resultado do desafio</div><h2 id="rTitle">RESULTADO</h2><p id="rText"></p><div id="rBtns"></div></div>
+  </section>
+
+  <!-- HUD -->
+  <section id="hud" class="hide" aria-label="Indicadores da corrida">
+    <div class="hud-top">
+      <div class="hud-stack"><div class="hud-card"><div class="hud-label">Créditos</div><div id="cash">$ 3.000</div></div></div>
+      <div class="hud-stack"><div class="hud-card"><div class="hud-label">Seu carro</div><div id="carName">Vira-Lata 1.0</div></div><button id="pauseBtn" type="button" aria-label="Pausar jogo">Ⅱ PAUSA</button></div>
+    </div>
+    <div id="heat" class="hide" aria-label="Indicador de captura policial"><i id="bustB"></i></div>
+    <canvas id="mm" width="170" height="170" aria-label="Minimapa"></canvas>
+    <div class="hud-left-bottom"><div class="objective"><div class="obj-label">Objetivo atual</div><div id="mission">Mundo aberto</div><div id="pos"></div><div id="timer"></div><div id="drift"></div></div></div>
+    <div class="speed-wrap" aria-label="Painel do veículo">
+      <div class="speed-meta"><span>NP // INSTRUMENT CLUSTER</span><span class="live">● RACE MODE</span></div>
+      <div class="speed-line"><div class="speed-value"><span id="spd">0</span><span class="unit">KM/H</span></div><div class="gearbox"><span>MARCHA</span><strong id="gear">1</strong></div></div>
+      <div class="gauge-line"><span class="nos-label">NITRO / BOOST</span><span class="nitro-hint">SHIFT</span></div>
+      <div class="meter" aria-label="Nitro disponível"><i id="nosB"></i></div>
+      <div class="speed-footer"><span>STREET TUNED</span><span>FULL THROTTLE // NO LIMITS</span></div>
+    </div>
+    <div id="count" aria-live="off"></div>
+    <div id="msg" aria-live="polite"></div>
+  </section>
+
+  <!-- O game.js registra os controles .tb e lê data-k -->
+  <div id="touch" class="hide" aria-label="Controles para celular">
+    <div class="touch-side left">
+      <button class="tb" data-k="left" type="button" aria-label="Virar à esquerda"><b>◀</b><small>Esquerda</small></button>
+      <button class="tb" data-k="right" type="button" aria-label="Virar à direita"><b>▶</b><small>Direita</small></button>
+      <button class="tb hb" data-k="hb" type="button" aria-label="Freio de mão"><b>↝</b><small>Drift</small></button>
+    </div>
+    <div class="touch-side right">
+      <button class="tb nos" data-k="nos" type="button" aria-label="Acionar nitro"><b>⚡</b><small>Nitro</small></button>
+      <button class="tb brake" data-k="brake" type="button" aria-label="Frear e dar ré"><b>−</b><small>Freio</small></button>
+      <button class="tb gas" data-k="gas" type="button" aria-label="Acelerar"><b>+</b><small>Acelerar</small></button>
+    </div>
+  </div>
+
+  <!-- Ajuda independente: não interfere nos IDs ou eventos do game.js -->
+  <section id="help" class="hide" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="help-box">
+      <div class="eyebrow">Manual do piloto</div><h2 id="helpTitle" class="section-title">COMO <em>JOGAR</em></h2>
+      <div class="help-grid">
+        <div class="help-col"><h3>Teclado</h3>
+          <div class="help-row"><span>Acelerar / frear</span><kbd>W S / ↑ ↓</kbd></div>
+          <div class="help-row"><span>Direção</span><kbd>A D / ← →</kbd></div>
+          <div class="help-row"><span>Nitro</span><kbd>SHIFT</kbd></div>
+          <div class="help-row"><span>Freio de mão / drift</span><kbd>ESPAÇO</kbd></div>
+          <div class="help-row"><span>Pausar</span><kbd>ESC ou P</kbd></div>
+        </div>
+        <div class="help-col"><h3>Recursos especiais</h3>
+          <div class="help-row"><span>Reposicionar carro</span><kbd>R</kbd></div>
+          <div class="help-row"><span>Trocar carro*</span><kbd>C</kbd></div>
+          <div class="help-row"><span>Qualidade gráfica</span><kbd>Q</kbd></div>
+          <div class="help-row"><span>Áudio</span><kbd>M</kbd></div>
+          <div class="help-row"><span>Música</span><kbd>N</kbd></div>
+        </div>
+      </div>
+      <p class="garage-tip">* Troca de carro apenas no mundo aberto, entre os veículos adquiridos. Controle USB/Bluetooth: use analógico esquerdo para direção, gatilhos para aceleração e freio, A para freio de mão e B para nitro. Em celulares, use os botões virtuais.</p>
+      <button id="helpClose" class="btn btn-primary" type="button">Entendido, vamos correr →</button>
+    </div>
+  </section>
+
+  <div id="boot" role="status" aria-live="polite">
+    <div class="boot-logo">NEON <span>PURSUIT</span></div>
+    <div class="boot-track"><i></i></div>
+    <p id="bootText">Iniciando motor 3D...</p>
+    <button id="bootRetry" type="button" onclick="location.reload()">Tentar novamente</button>
+  </div>
+
+  <script>
+  // Camada leve de interface. Toda a jogabilidade permanece em game.js.
+  (() => {
+    const help = document.getElementById('help');
+    const open = () => { help.classList.remove('hide'); document.getElementById('helpClose').focus(); };
+    const close = () => { help.classList.add('hide'); };
+    document.getElementById('bHelp').addEventListener('click', open);
+    document.getElementById('pHelp').addEventListener('click', open);
+    document.getElementById('helpClose').addEventListener('click', close);
+    help.addEventListener('click', e => { if (e.target === help) close(); });
+    // Mostrar o painel de ajuda não aciona ESC, pois a engine usa essa tecla para pausar.
+    help.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }, true);
+
+    // Fallbacks: o jogo original requer exatamente Three.js r128.
+    const libs = [
+      'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+      'https://unpkg.com/three@0.128.0/build/three.min.js'
+    ];
+    const boot = document.getElementById('boot');
+    const status = document.getElementById('bootText');
+    function loadScript(src) {
+      return new Promise((resolve,reject)=>{
+        const script=document.createElement('script'); script.src=src; script.async=false;
+        script.onload=resolve; script.onerror=()=>{script.remove();reject(new Error('Falha ao carregar '+src));};
+        document.body.appendChild(script);
+      });
+    }
+    let engineHasError=false;
+    const onError = e => {
+      if (boot.classList.contains('hide')) return;
+      if ((e.message && /WebGL|THREE|game\.js/i.test(e.message)) || (e.filename && /game\.js/.test(e.filename))) engineHasError=true;
+    };
+    window.addEventListener('error', onError);
+    (async()=>{
+      try{
+        status.textContent='Carregando biblioteca gráfica Three.js r128...';
+        for(const src of libs){
+          if(window.THREE)break;
+          try{await loadScript(src)}catch(e){console.warn(e.message)}
+        }
+        if(!window.THREE) throw new Error('Não foi possível baixar Three.js. Verifique a internet e recarregue.');
+        status.textContent='Sincronizando a cidade, veículos e efeitos...';
+        await loadScript('./game.js');
+        if(engineHasError) throw new Error('A inicialização do motor 3D encontrou um erro. Verifique o console do navegador.');
+        boot.classList.add('hide');
+      }catch(e){
+        console.error('NEON PURSUIT:',e);
+        status.textContent=e.message||'Erro ao iniciar o jogo.';
+        document.querySelector('.boot-track').style.display='none';
+        document.getElementById('bootRetry').style.display='block';
+      }
+    })();
+  })();
+  </script>
 </body>
 </html>
